@@ -8,6 +8,8 @@ from pydantic_numpy.typing import (
     Np1DArrayFp64,
     Np2DArrayFp64,
     Np2DArrayInt8,
+    Np2DArrayInt64,
+    Np1DArrayInt64,
     Np1DArrayBool,
 )
 
@@ -98,7 +100,7 @@ class SolverData(BaseModel):
     potentiometry_opts: PotentiometryOptions = PotentiometryOptions()
 
     components: List[str]
-    stoichiometry: Np2DArrayInt8
+    stoichiometry: Np2DArrayInt8 | Np2DArrayInt64
     solid_stoichiometry: Np2DArrayInt8
     log_beta: Np1DArrayFp64
     log_beta_sigma: Np1DArrayFp64 = np.array([])
@@ -107,7 +109,7 @@ class SolverData(BaseModel):
     log_ks_sigma: Np1DArrayFp64 = np.array([])
     log_ks_ref_dbh: Np2DArrayFp64 = np.empty((0, 2))
 
-    charges: Np1DArrayFp64 = np.array([])
+    charges: Np1DArrayInt64 = np.array([])
 
     ionic_strength_dependence: bool = False
     reference_ionic_str_species: Np1DArrayFp64 | float = 0
@@ -628,7 +630,7 @@ class SolverData(BaseModel):
             weights = "calculated"
         elif potentiometry_data["weightsMode"] == 2:
             weights = "given"
-
+        #breakpoint()
         for t in potentiometry_data["titrations"]:
             titrations.append(
                 PotentiometryTitrationsParameters(

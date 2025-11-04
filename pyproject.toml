@@ -2,7 +2,8 @@
 name = "libeq"
 version = "0.1.0"
 description = ""
-authors = ["Lorenzo Castellino <castellino96@gmail.com>"]
+authors = ["Lorenzo Castellino <castellino96@gmail.com>",
+           "Salvador Blasco <salvador.blasco@uv.es>"]
 readme = "README.md"
 packages = [{ include = "libeq", from = "src" }]
 
@@ -39,3 +40,8 @@ griffe-fieldz = "^0.1.2"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
