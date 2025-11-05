@@ -62,6 +62,8 @@ class TitrationParameters(BaseModel):
     c0_sigma: Np1DArrayFp64 | None = None
     ct: Np1DArrayFp64 | None = None
     ct_sigma: Np1DArrayFp64 | None = None
+    c0_flags: List[int] = []
+    ct_flags: List[int] = []
 
     c0back: float = 0
     ctback: float = 0
