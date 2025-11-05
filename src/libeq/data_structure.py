@@ -8,6 +8,8 @@ from pydantic_numpy.typing import (
     Np1DArrayFp64,
     Np2DArrayFp64,
     Np2DArrayInt8,
+    Np2DArrayInt16,
+    Np2DArrayInt32,
     Np2DArrayInt64,
     Np1DArrayInt64,
     Np1DArrayBool,

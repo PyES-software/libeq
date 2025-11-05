@@ -21,5 +21,20 @@ def test_first():
                                   [1,1, 1],
                                   [1,1,-1],
                                   [0,0,-1]], dtype=int),
-        solid_stoichiometry = np.array([[]], dtype=int)
+        solid_stoichiometry = np.array([[]], dtype=int),
+        log_beta = np.array([ 10.19, 
+                              16.32, 
+                              19.01, 
+                              21.01, 
+                              22.51, 
+                              -9.15, 
+                             -17.1, 
+                             -28.39, 
+                             -40.71, 
+                              -8.89, 
+                             -57.53, 
+                              16.25, 
+                              19.25, 
+                               4.65, 
+                              -13.78])
     )
