@@ -85,7 +85,7 @@ class PotentiometryTitrationsParameters(TitrationParameters):
     v_add: Np1DArrayFp64 | None = None
     emf: Np1DArrayFp64 | None = None
     px_range: List[list[float]] = [[0, 0]]
-    ignored: Np1DArrayBool | None = None
+    ignored: Np1DArrayBool | None = False
 
 
 class PotentiometryOptions(BaseModel):
