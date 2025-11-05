@@ -87,7 +87,8 @@ def test_first():
                          -300.1, -300.5, -300.8, -301.2, -301.5, -301.8, -302.1])
     )
     pot = PotentiometryOptions(
-        titrations = [ titration1, titration2 ]
+        titrations = [ titration1, titration2 ],
+        beta_flags = [0,0,0,0,0,0,0,0,0,0,0,1,1,1,0]
     )
     sd = SolverData(
         components = ['EDTA', 'Zn', 'H'],

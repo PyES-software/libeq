@@ -122,7 +122,7 @@ def solve_equilibrium_equations(
         initial_guess = np.full_like(total_concentration, 1e-12)
     else:
         initial_guess = np.atleast_2d(initial_guess)
-    breakpoint()
+
     damping_fn = outer_fixed_point(    # this is too convoluted
         **outer_fiexd_point_params,    # TODO refactor for readability
     )(pcf)
@@ -150,7 +150,7 @@ def solve_equilibrium_equations(
         ),
         axis=1,
     )
-    breakpoint()
+
     # Apply Newton-Raphson iterations
     result, log_beta, log_ks = nr_fn(
         damped_guess,
