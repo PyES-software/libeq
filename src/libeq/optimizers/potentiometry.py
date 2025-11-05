@@ -17,6 +17,31 @@ from .fitter import levenberg_marquardt
 
 
 def PotentiometryOptimizer(data: SolverData, reporter=None):
+    """
+    Solve a potentiometry problem. Refine constants and possibly, concentrations.
+
+    Parameters:
+    -------
+    data : SolverData
+        The data for the refinement.
+
+    Returns:
+        x : 
+            the refined data
+        concs :
+            the final free concentrations
+        final_log_beta :
+            the final refined constant values
+        b_error :
+            the fitting error in the concentration
+        cor_matrix :
+            the correlation matric
+        cov_matrix :
+            the covariance matrix
+        return_extra :
+            additional information
+    -------
+    """
     def f_obj(c):
         """
         Given the concentrations of the components, calculate the objective function value.
