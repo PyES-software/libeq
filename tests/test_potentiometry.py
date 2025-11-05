@@ -124,7 +124,7 @@ def test_first():
                               -13.78]),
         potentiometry_opts = pot
     )
-    #breakpoint()
+    breakpoint()
     result = PotentiometryOptimizer(sd)
     x, concs, final_log_beta, b_error, cor_matrix, cov_matrix, return_extra = result
     print(result)

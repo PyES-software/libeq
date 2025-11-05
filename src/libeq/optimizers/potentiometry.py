@@ -132,7 +132,7 @@ def PotentiometryOptimizer(data: SolverData, reporter=None):
     emf0 = [t.e0 for t in data.potentiometry_opts.titrations]
     v_add = [t.v_add for t in data.potentiometry_opts.titrations]
     px_ranges = [t.px_range for t in data.potentiometry_opts.titrations]
-    idx_to_keep = [~t.ignored for t in data.potentiometry_opts.titrations]
+    idx_to_keep = [not t.ignored for t in data.potentiometry_opts.titrations]
 
     reduced_emf = [
         build_reduced_emf(emf_, emf0_, slope_)
