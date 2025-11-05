@@ -91,6 +91,7 @@ def test_first():
     )
     sd = SolverData(
         components = ['EDTA', 'Zn', 'H'],
+        charges = [ -4, 2, 1 ],
         stoichiometry = np.array([[1,0, 1],
                                   [1,0, 2],
                                   [1,0, 3],
@@ -105,7 +106,7 @@ def test_first():
                                   [1,1, 0],
                                   [1,1, 1],
                                   [1,1,-1],
-                                  [0,0,-1]], dtype=int),
+                                  [0,0,-1]], dtype=int).T,
         solid_stoichiometry = np.array([[]], dtype=int),
         log_beta = np.array([ 10.19, 
                               16.32, 
@@ -124,7 +125,7 @@ def test_first():
                               -13.78]),
         potentiometry_opts = pot
     )
-    breakpoint()
+    # breakpoint()
     result = PotentiometryOptimizer(sd)
     x, concs, final_log_beta, b_error, cor_matrix, cov_matrix, return_extra = result
     print(result)
