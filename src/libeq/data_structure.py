@@ -100,8 +100,8 @@ class SolverData(BaseModel):
     potentiometry_opts: PotentiometryOptions = PotentiometryOptions()
 
     components: List[str]
-    stoichiometry: Np2DArrayInt8 | Np2DArrayInt64
-    solid_stoichiometry: Np2DArrayInt8
+    stoichiometry: Np2DArrayInt8 | Np2DArrayInt16 | Np2DArrayInt32 | Np2DArrayInt64
+    solid_stoichiometry:  Np2DArrayInt8 | Np2DArrayInt16 | Np2DArrayInt32 | Np2DArrayInt64
     log_beta: Np1DArrayFp64
     log_beta_sigma: Np1DArrayFp64 = np.array([])
     log_beta_ref_dbh: Np2DArrayFp64 = np.empty((0, 2))
