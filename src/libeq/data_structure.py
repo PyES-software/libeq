@@ -120,6 +120,8 @@ class SolverData(BaseModel):
     reference_ionic_str_solids: Np1DArrayFp64 | float = 0
     dbh_params: Np1DArrayFp64 = np.zeros(8)
 
+    temperature: float = 298.15                   # Kelvin
+
     @computed_field
     @cached_property
     def model_ready(self) -> tuple[bool, dict[str, str]]:
