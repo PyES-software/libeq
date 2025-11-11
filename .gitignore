@@ -44,3 +44,5 @@ __pycache__/
 # Numpy debug files
 numpy-*.log
 *.npz
+
+sandbox

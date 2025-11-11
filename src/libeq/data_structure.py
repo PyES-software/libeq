@@ -65,8 +65,8 @@ class TitrationParameters(BaseModel):
     c0_flags: List[int] = []
     ct_flags: List[int] = []
 
-    c0back: float = 0
-    ctback: float = 0
+    c0back: float = 0.0
+    ctback: float = 0.0
 
 
 class SimulationTitrationParameters(TitrationParameters):
@@ -76,15 +76,15 @@ class SimulationTitrationParameters(TitrationParameters):
 
 
 class PotentiometryTitrationsParameters(TitrationParameters):
-    electro_active_compoment: int | None = None
-    e0: float | None = None
-    e0_sigma: float | None = None
-    slope: float | None = None
-    v0: float | None = None
-    v0_sigma: float | None = None
-    v_add: Np1DArrayFp64 | None = None
-    emf: Np1DArrayFp64 | None = None
-    px_range: List[list[float]] = [[0, 0]]
+    electro_active_compoment: int | None = None        # index of the component
+    e0: float | None = None                            # in mV
+    e0_sigma: float | None = None                      # in mV
+    slope: float | None = None                         # in mV
+    v0: float | None = None                            # in mL
+    v0_sigma: float | None = None                      # in mL
+    v_add: Np1DArrayFp64 | None = None                 # in mL
+    emf: Np1DArrayFp64 | None = None                   # in mV
+    px_range: List[list[float]] = [[0, 0]]             # dimmensionless
     ignored: Np1DArrayBool | None = False
 
 

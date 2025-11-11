@@ -17,6 +17,9 @@ pythonpath = ["src"]
 [tool.run.ini_options]
 pythonpath = ["src"]
 
+[tool.mypy]
+mypy_path = "src"
+
 # [tool.poetry.dependencies]
 # python = ">=3.9,<3.13"
 # numpy = "^1.26.4"
