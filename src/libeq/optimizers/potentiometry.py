@@ -6,12 +6,12 @@ from typing import Protocol, TypeAlias, Any
 
 import numpy as np
 from numpy.typing import NDArray
-from libeq.data_structure import SolverData, PotentiometryOptions, PotentiometryTitrationsParameters
+from libeq.data_structure import SolverData
 from libeq.solver import solve_equilibrium_equations
 
-import .jacobian
-import .libemf
-import .libfit
+from . import jacobian
+from . import libemf
+from . import libfit
 
 
 FArray: TypeAlias = NDArray[float]
@@ -311,12 +311,15 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     -------
     """
     bridge: Bridge = PotentiometryBridge(data)
-    result = libfit.levenberg_marquardt(bridge, debug=True)
+    fit_result = libfit.levenberg_marquardt(bridge, debug=True)
     values = bridge.final_values()
     final_beta = next(values)
     final_total_concentration = list(itertools.islice(values, bridge.number_of_titrations))
-
-    return result
+    
+    return {
+        'final_beta': final_beta,
+        'final_total_concentration': final_total_concentration
+    }
 
 
 def covariance_fun(J, W, F):
