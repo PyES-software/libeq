@@ -1,10 +1,8 @@
 <p align="center">
-
 <img src="docs/assets/logo.png" style="width: 5vw;">
+</p>
 
 # libeq
-
-</p>
 
 `libeq` is a Python library for the solution of thermodynamic equilibrium. It is the core routine of [PyES](https://www.github.com/Kastakin/PyES), a frontend for the calculation of species distribution and simulation of titration curves.
 
@@ -24,4 +22,5 @@ For more detailed information about `libeq` and its usage, please refer to the p
 
 This library is based on the work of many research groups on the topic, in particular the works of Prof. Sammartano's research group from the University of Messina and the Prof. Carrayrou from the University of Strasbourg.
 
-The code has been heavily inspired by the works of Prof. Blasco from the University of Valencia.
+The code has been heavily inspired by the works of [Prof. Blasco](https://github.com/salvadorblasco)
+from the [University of Valencia](https://www.uv.es/).
