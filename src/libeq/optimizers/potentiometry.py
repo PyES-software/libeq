@@ -1,6 +1,5 @@
 "Test collection for potentiometry data fitting."
 
-from enum import IntEnum, auto
 import itertools
 from typing import Protocol, TypeAlias, Any
 
@@ -8,6 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 from libeq.data_structure import SolverData
 from libeq.solver import solve_equilibrium_equations
+from libeq.consts import Flags, LN10
 
 from . import jacobian
 from . import libemf
@@ -15,11 +15,6 @@ from . import libfit
 
 
 FArray: TypeAlias = NDArray[float]
-
-
-class Flags(IntEnum):
-    CONSTANT = auto()
-    REFINE = auto()
 
 
 def refine_indices(flags: list[Flags]):
@@ -53,7 +48,6 @@ class PotentiometryBridge:
     def __init__(self, data: SolverData) -> None:
         self._data = data
         self._freeconcentration: FArray | None = None
-        self.LN10 = 2.302585093
 
         self._stoich = self._stoichiometry(extended=False)
         self._stoichx = self._stoichiometry(extended=True)
@@ -73,7 +67,7 @@ class PotentiometryBridge:
             self._dof_conc += sum(1 for _ in titration.c0_flags if _ == Flags.REFINE)
             self._dof_conc += sum(1 for _ in titration.ct_flags if _ == Flags.REFINE)
             self._slices.append(slice(counter, counter+len(titration.emf)))
-            self._slopes[self._slices[-1]] = titration.slope / self.LN10
+            self._slopes[self._slices[-1]] = titration.slope / LN10
             self._emf0[self._slices[-1]] = titration.e0
             counter += len(titration.emf)
         self._dof = self._dof_beta + self._dof_conc
@@ -108,7 +102,7 @@ class PotentiometryBridge:
             idx_refinable_ct = refine_indices(titration.ct_flags)
             self._idx_refinable.extend(idx_refinable_ct)
             concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct))
-        self._variables = np.concatenate([beta_to_refine*self.LN10, *concs_to_refine])
+        self._variables = np.concatenate([beta_to_refine*LN10, *concs_to_refine])
         self._step = np.zeros(self._dof, dtype=float)
 
     def accept_values(self) -> None:
@@ -214,7 +208,7 @@ class PotentiometryBridge:
     def _beta(self):
         beta = self._data.log_beta.copy()
         idx = refine_indices(self._data.potentiometry_opts.beta_flags)
-        beta[idx] = (self._variables[:self._dof_beta] + self._step[:self._dof_beta]) / self.LN10
+        beta[idx] = (self._variables[:self._dof_beta] + self._step[:self._dof_beta]) / LN10
         return beta
 
     def _stoichiometry(self, extended=False):

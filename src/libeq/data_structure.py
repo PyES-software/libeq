@@ -18,6 +18,7 @@ from pydantic_numpy.typing import (
 from .utils import NumpyEncoder
 
 from .parsers import parse_BSTAC_file
+from .parsers import parse_superquad_file
 
 
 def _assemble_species_names(components, stoichiometry):
@@ -455,6 +456,7 @@ class SolverData(BaseModel):
         parsed_data = parse_BSTAC_file(lines)
 
         temperature = parsed_data["TEMP"]
+        data["temperature"] = temperature
         data["stoichiometry"] = np.array(
             [
                 [d[key] for key in d if key.startswith("IX")]
@@ -529,6 +531,38 @@ class SolverData(BaseModel):
             pot_flags=[],
         )
         return cls(**data)
+
+    @classmethod
+    def load_from_superquad(cls, file_path: str) -> "SolverData":
+        parsed_data = parse_superquad_file(file_path)
+        data = {}
+        temp = parsed_data.get('temperature', 298.15)
+        data['temperature'] = temp
+        data['stoichiometry'] = np.array(parsed_data['stoichiometry'], dtype=int)
+        data["solid_stoichiometry"] = np.empty(
+            (data["stoichiometry"].shape[0], 0), dtype=int)
+        data["log_beta"] = np.array(parsed_data["log_beta"], dtype=float)
+        data['components'] = parsed_data['components']
+
+        titration_options = [
+            PotentiometryTitrationsParameters(
+                c0=t['initial amount'] / t['starting volume'],
+                ct=t['buret concentration'],
+                electro_active_compoment=t['electroactive'],
+                e0=t['standard potential'],
+                e0_sigma=t['potential error'],
+                slope=(temp + 273.15) / 11.6048 * 2.303,
+                v0=t['starting volume'],
+                v0_sigma=t["volume erro"],
+                v_add=np.array(t["titre"]),
+                emf=np.array(t["potential"]),
+                c0back=t["background_params"][0] if "background_params" in t else 0,
+                ctback=t["background_params"][1] if "background_params" in t else 0,
+                px_range=[[parsed_data["PHI"], parsed_data["PHF"]]],
+            )
+            for t in parsed_data["titrations"]
+        ]
+        
 
     @classmethod
     def load_from_pyes(cls, pyes_data: str | dict) -> "SolverData":
