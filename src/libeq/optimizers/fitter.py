@@ -73,7 +73,7 @@ def levenberg_marquardt(x0, y, f, free_conc, jacobian, weights, capping=None, **
     n_points = len(y)
     n_vars = len(x0)
     sigma_hist = []
-    breakpoint()
+    # breakpoint()
     # import pudb
     # pudb.set_trace()
 

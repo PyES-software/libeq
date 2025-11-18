@@ -106,7 +106,7 @@ class SolverData(BaseModel):
 
     components: List[str]
     stoichiometry: Np2DArrayInt8 | Np2DArrayInt16 | Np2DArrayInt32 | Np2DArrayInt64
-    solid_stoichiometry:  Np2DArrayInt8 | Np2DArrayInt16 | Np2DArrayInt32 | Np2DArrayInt64
+    solid_stoichiometry:  Np2DArrayInt8 | Np2DArrayInt16 | Np2DArrayInt32 | Np2DArrayInt64 = np.array([], dtype=int)
     log_beta: Np1DArrayFp64
     log_beta_sigma: Np1DArrayFp64 = np.array([])
     log_beta_ref_dbh: Np2DArrayFp64 = np.empty((0, 2))
@@ -589,8 +589,7 @@ class SolverData(BaseModel):
                 list(pyes_data["speciesModel"]["EGF"].values()),
             )
         )
-
-        data["solid_stoichiometry"] = np.row_stack(
+        data["solid_stoichiometry"] = np.vstack(
             [
                 list(pyes_data["solidSpeciesModel"][col].values())
                 for col in data["components"]
@@ -674,13 +673,13 @@ class SolverData(BaseModel):
         for t in potentiometry_data["titrations"]:
             titrations.append(
                 PotentiometryTitrationsParameters(
-                    c0=np.array(list(t.get("concView", {}).get("C0", {}).values())),
-                    ct=np.array(list(t.get("concView", {}).get("CT", {}).values())),
+                    c0=np.array(list(t.get("concView", {}).get("C0", {}).values()), dtype=float),
+                    ct=np.array(list(t.get("concView", {}).get("CT", {}).values()), dtype=float),
                     c0_sigma=np.array(
-                        list(t.get("concView", {}).get("Sigma C0", {}).values())
+                        list(t.get("concView", {}).get("Sigma C0", {}).values()), dtype=float
                     ),
                     ct_sigma=np.array(
-                        list(t.get("concView", {}).get("Sigma CT", {}).values())
+                        list(t.get("concView", {}).get("Sigma CT", {}).values()), dtype=float
                     ),
                     electro_active_compoment=t["electroActiveComponent"],
                     e0=t["e0"],

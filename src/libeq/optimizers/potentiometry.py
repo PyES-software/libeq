@@ -55,6 +55,7 @@ class PotentiometryBridge:
         self._ntitrations = len(data.potentiometry_opts.titrations)
         self._experimental_points = [ len(t.v_add) for t in self._titrations() ]
         self._total_points = sum(self._experimental_points)
+        self._chargesx = np.sum(self._stoichx*data.charges, axis=1)
 
         # calculate degrees of freedom
         self._dof_beta = sum(1 for _ in data.potentiometry_opts.beta_flags if _ == Flags.REFINE)
@@ -243,7 +244,7 @@ class PotentiometryBridge:
         log_beta = self._beta()
         total_concentration = self._analytical_concentration()
 
-        charges = self._data.charges
+        #charges = self._data.charges
         background_ions_concentration = self._background_concentration()
         independent_component_activity = None
 
@@ -252,10 +253,11 @@ class PotentiometryBridge:
             "reference_ionic_str_species": self._data.reference_ionic_str_species,
             "reference_ionic_str_solids": self._data.reference_ionic_str_solids,
             "dbh_values": self._data.dbh_values.copy(),
-            "charges": charges,
+            "charges": self._chargesx,
             "independent_component_activity": independent_component_activity,
             "background_ions_concentration": background_ions_concentration,
         }
+        # breakpoint()
         c, *_ = solve_equilibrium_equations(
             stoichiometry=self._data.stoichiometry,
             solid_stoichiometry=self._data.solid_stoichiometry,

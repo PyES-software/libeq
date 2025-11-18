@@ -1,6 +1,6 @@
 [project]
 name = "libeq"
-version = "0.2.0"
+version = "0.3.0"
 description = "Library for solving equilibrium in solution problems"
 authors = [{name="Lorenzo Castellino", email="<castellino96@gmail.com>"},
            {name="Salvador Blasco", email="<salvador.blasco@uv.es>"}]
@@ -10,6 +10,9 @@ requires-python = ">= 3.10"
 dependencies = [
  "numpy",
 ]
+
+[project.scripts]
+libeq = "..src"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
