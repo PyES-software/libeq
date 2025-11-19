@@ -19,6 +19,7 @@ from .utils import NumpyEncoder
 
 from .parsers import parse_BSTAC_file
 from .parsers import parse_superquad_file
+from .consts import Flags
 
 
 def _assemble_species_names(components, stoichiometry):
@@ -704,7 +705,8 @@ class SolverData(BaseModel):
         data["potentiometry_opts"] = PotentiometryOptions(
             titrations=titrations,
             weights=weights,
-            beta_flags=[int(v) for v in potentiometry_data["beta_refine_flags"]],
+            beta_flags=[Flags.REFINE if v else Flags.CONSTANT
+                        for v in potentiometry_data["beta_refine_flags"]],
             conc_flags=[],
             pot_flags=[],
         )

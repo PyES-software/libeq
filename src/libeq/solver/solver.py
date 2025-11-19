@@ -162,7 +162,6 @@ def solve_equilibrium_equations(
         max_iterations=1000,
         threshold=1e-10,
     )
-
     if solid_stoichiometry.shape[1] > 0:
         result, log_beta, log_ks, saturation_index = solids_solver(
             result,

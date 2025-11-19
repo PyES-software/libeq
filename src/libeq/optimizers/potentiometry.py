@@ -96,13 +96,25 @@ class PotentiometryBridge:
         self._idx_refinable.extend(idx_refinable_beta)
         beta_to_refine = np.extract(idx_refinable_beta, self._data.log_beta)
         concs_to_refine = []
+
         for titration in self._data.potentiometry_opts.titrations:
-            idx_refinable_c0 = refine_indices(titration.c0_flags)
+            if titration.c0_flags:
+                assert len(titration.c0_flags) == self._ncomponents
+                idx_refinable_c0 = refine_indices(titration.c0_flags)
+            else:
+                idx_refinable_c0 = self._ncomponents*[False]
             self._idx_refinable.extend(idx_refinable_c0)
             concs_to_refine.append(np.extract(idx_refinable_c0, titration.c0))
-            idx_refinable_ct = refine_indices(titration.ct_flags)
+
+            if titration.ct_flags:
+                assert len(titration.ct_flags) == self._ncomponents
+                idx_refinable_ct = refine_indices(titration.ct_flags)
+            else:
+                idx_refinable_ct = self._ncomponents*[False]
             self._idx_refinable.extend(idx_refinable_ct)
+
             concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct))
+
         self._variables = np.concatenate([beta_to_refine*LN10, *concs_to_refine])
         self._step = np.zeros(self._dof, dtype=float)
 
