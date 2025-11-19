@@ -176,6 +176,7 @@ class PotentiometryBridge:
 
     def report_step(self, **kwargs):
         kwargs['log_beta'] = self._beta()
+        kwargs['stoichiometry'] = self._stoich
         self._reporter(**kwargs)
 
     def size(self) -> tuple[int, int]:

@@ -26,6 +26,7 @@ class Exec(enum.IntEnum):
     NORMAL_END = enum.auto()
     TOO_MANY_ITERS = enum.auto()
     ABNORMAL_END = enum.auto()
+    SINGULAR_MATRIX = enum.auto()
 
 
 def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
@@ -100,7 +101,12 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
             resid: FArray = bridge.tmp_residual()
             gradient: FArray = J.T @ W @ resid
             gradient_norm = np.linalg.norm(gradient)
-            dx = np.linalg.solve(M+damping*D, gradient)
+            try:
+                dx = np.linalg.solve(M+damping*D, gradient)
+            except np.linalg.LinAlgError as exc:
+                execution_status = Exec.SINGULAR_MATRIX
+                exception_thrown = exc
+                break
 
         bridge.take_step(dx)                # Step bridge values and build matrices
         if execution_status == Exec.RUNNING:
@@ -168,10 +174,6 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     else:
         execution_status = Exec.TOO_MANY_ITERS
 
-    # bridge.iteration_history(chisq = chisq/bridge.degrees_of_freedom,
-    #                          sigma=sigma,
-    #                          gradient_norm=gradient_norm)
-
     ret = {'jacobian': J,
            'residuals': resid,
            'damping': damping,
@@ -182,6 +184,8 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     if execution_status == Exec.ABNORMAL_END:
         raise excepts.UnstableIteration(msg=("The iteration is not stable"),
                                         last_value=ret)
+    if execution_status == Exec.SINGULAR_MATRIX:
+        raise exception_thrown
     return ret
 
 
