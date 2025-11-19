@@ -198,12 +198,17 @@ class PotentiometryBridge:
         return np.concatenate(aconc, axis=0)
 
     def _background_concentration(self) -> FArray:
-        bconc = []
-        for titration, (c0b, ctb) in zip(self._data.potentiometry_opts.titrations,
-                                         self._titration_parameters()):
-            aux = (c0b[None, :] * titration.v0 + ctb[None, :] * titration.v_add[:, None]) / \
+        # bconc = []
+        # for titration, (c0b, ctb) in zip(self._data.potentiometry_opts.titrations,
+        #                                  self._titration_parameters()):
+        #     aux = (c0b[None, :] * titration.v0 + ctb[None, :] * titration.v_add[:, None]) / \
+        #         (titration.v0 + titration.v_add[:, None])
+        #     bconc.append(aux)
+        bconc = [
+            (titration.c0back * titration.v0 + titration.ctback * titration.v_add[:, None]) / \
                 (titration.v0 + titration.v_add[:, None])
-            bconc.append(aux)
+            for titration in self._titrations()
+        ]
         return np.concatenate(bconc, axis=0)
 
     def _beta(self):
@@ -257,7 +262,6 @@ class PotentiometryBridge:
             "independent_component_activity": independent_component_activity,
             "background_ions_concentration": background_ions_concentration,
         }
-        # breakpoint()
         c, *_ = solve_equilibrium_equations(
             stoichiometry=self._data.stoichiometry,
             solid_stoichiometry=self._data.solid_stoichiometry,
