@@ -45,8 +45,9 @@ class Bridge(Protocol):
 
 
 class PotentiometryBridge:
-    def __init__(self, data: SolverData) -> None:
+    def __init__(self, data: SolverData, reporter) -> None:
         self._data = data
+        self._reporter = reporter
         self._freeconcentration: FArray | None = None
 
         self._stoich = self._stoichiometry(extended=False)
@@ -173,9 +174,9 @@ class PotentiometryBridge:
     def report_raw(self, text):
         print(text)
 
-    def report_step(self, iteration, damping, chisq, sigma, gradient_norm):
-        # print(f"{iteration}  {damping}  {chisq}  {sigma} {gradient_norm}")
-        ...
+    def report_step(self, **kwargs):
+        kwargs['log_beta'] = self._beta()
+        self._reporter(**kwargs)
 
     def size(self) -> tuple[int, int]:
         "Return number of points, number os variables."
@@ -322,7 +323,7 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
             additional information
     -------
     """
-    bridge: Bridge = PotentiometryBridge(data)
+    bridge: Bridge = PotentiometryBridge(data, reporter)
     fit_result = libfit.levenberg_marquardt(bridge, debug=True)
     values = bridge.final_values()
     final_beta = next(values)

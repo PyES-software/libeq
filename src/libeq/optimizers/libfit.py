@@ -168,9 +168,9 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     else:
         execution_status = Exec.TOO_MANY_ITERS
 
-    bridge.iteration_history(chisq = chisq/bridge.degrees_of_freedom,
-                             sigma=sigma,
-                             gradient_norm=gradient_norm)
+    # bridge.iteration_history(chisq = chisq/bridge.degrees_of_freedom,
+    #                          sigma=sigma,
+    #                          gradient_norm=gradient_norm)
 
     ret = {'jacobian': J,
            'residuals': resid,
