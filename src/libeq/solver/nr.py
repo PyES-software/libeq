@@ -175,11 +175,10 @@ def newton_raphson(
         if zero_offdiag:
             J *= np.eye(n_species)  # zerom
 
+        dx = np.linalg.solve(J, -F[...,None]).squeeze(-1)
         if scaling:
             d = DRScaling(J, F)
-            dx = np.linalg.solve(J, -F) / np.sqrt(d)
-        else:
-            dx = np.linalg.solve(J, -F)
+            dx /= np.sqrt(d)
 
         if forcer:
             step_length, _ = linesearch3(

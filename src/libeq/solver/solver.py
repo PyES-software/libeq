@@ -123,8 +123,8 @@ def solve_equilibrium_equations(
     else:
         initial_guess = np.atleast_2d(initial_guess)
 
-    damping_fn = outer_fixed_point(
-        **outer_fiexd_point_params,
+    damping_fn = outer_fixed_point(    # this is too convoluted
+        **outer_fiexd_point_params,    # TODO refactor for readability
     )(pcf)
 
     nr_fn = outer_fixed_point(
@@ -162,7 +162,6 @@ def solve_equilibrium_equations(
         max_iterations=1000,
         threshold=1e-10,
     )
-
     if solid_stoichiometry.shape[1] > 0:
         result, log_beta, log_ks, saturation_index = solids_solver(
             result,

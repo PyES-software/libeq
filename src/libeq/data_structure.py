@@ -8,12 +8,18 @@ from pydantic_numpy.typing import (
     Np1DArrayFp64,
     Np2DArrayFp64,
     Np2DArrayInt8,
+    Np2DArrayInt16,
+    Np2DArrayInt32,
+    Np2DArrayInt64,
+    Np1DArrayInt64,
     Np1DArrayBool,
 )
 
 from .utils import NumpyEncoder
 
 from .parsers import parse_BSTAC_file
+from .parsers import parse_superquad_file
+from .consts import Flags
 
 
 def _assemble_species_names(components, stoichiometry):
@@ -58,9 +64,11 @@ class TitrationParameters(BaseModel):
     c0_sigma: Np1DArrayFp64 | None = None
     ct: Np1DArrayFp64 | None = None
     ct_sigma: Np1DArrayFp64 | None = None
+    c0_flags: List[int] = []
+    ct_flags: List[int] = []
 
-    c0back: float = 0
-    ctback: float = 0
+    c0back: float = 0.0
+    ctback: float = 0.0
 
 
 class SimulationTitrationParameters(TitrationParameters):
@@ -70,16 +78,16 @@ class SimulationTitrationParameters(TitrationParameters):
 
 
 class PotentiometryTitrationsParameters(TitrationParameters):
-    electro_active_compoment: int | None = None
-    e0: float | None = None
-    e0_sigma: float | None = None
-    slope: float | None = None
-    v0: float | None = None
-    v0_sigma: float | None = None
-    v_add: Np1DArrayFp64 | None = None
-    emf: Np1DArrayFp64 | None = None
-    px_range: List[list[float]] = [[0, 0]]
-    ignored: Np1DArrayBool | None = None
+    electro_active_compoment: int | None = None        # index of the component
+    e0: float | None = None                            # in mV
+    e0_sigma: float | None = None                      # in mV
+    slope: float | None = None                         # in mV
+    v0: float | None = None                            # in mL
+    v0_sigma: float | None = None                      # in mL
+    v_add: Np1DArrayFp64 | None = None                 # in mL
+    emf: Np1DArrayFp64 | None = None                   # in mV
+    px_range: List[list[float]] = [[0, 0]]             # dimmensionless
+    ignored: Np1DArrayBool | None = False
 
 
 class PotentiometryOptions(BaseModel):
@@ -98,8 +106,8 @@ class SolverData(BaseModel):
     potentiometry_opts: PotentiometryOptions = PotentiometryOptions()
 
     components: List[str]
-    stoichiometry: Np2DArrayInt8
-    solid_stoichiometry: Np2DArrayInt8
+    stoichiometry: Np2DArrayInt8 | Np2DArrayInt16 | Np2DArrayInt32 | Np2DArrayInt64
+    solid_stoichiometry:  Np2DArrayInt8 | Np2DArrayInt16 | Np2DArrayInt32 | Np2DArrayInt64 = np.array([], dtype=int)
     log_beta: Np1DArrayFp64
     log_beta_sigma: Np1DArrayFp64 = np.array([])
     log_beta_ref_dbh: Np2DArrayFp64 = np.empty((0, 2))
@@ -107,12 +115,14 @@ class SolverData(BaseModel):
     log_ks_sigma: Np1DArrayFp64 = np.array([])
     log_ks_ref_dbh: Np2DArrayFp64 = np.empty((0, 2))
 
-    charges: Np1DArrayFp64 = np.array([])
+    charges: Np1DArrayInt64 = np.array([])
 
     ionic_strength_dependence: bool = False
     reference_ionic_str_species: Np1DArrayFp64 | float = 0
     reference_ionic_str_solids: Np1DArrayFp64 | float = 0
     dbh_params: Np1DArrayFp64 = np.zeros(8)
+
+    temperature: float = 298.15                   # Kelvin
 
     @computed_field
     @cached_property
@@ -447,6 +457,7 @@ class SolverData(BaseModel):
         parsed_data = parse_BSTAC_file(lines)
 
         temperature = parsed_data["TEMP"]
+        data["temperature"] = temperature
         data["stoichiometry"] = np.array(
             [
                 [d[key] for key in d if key.startswith("IX")]
@@ -523,6 +534,38 @@ class SolverData(BaseModel):
         return cls(**data)
 
     @classmethod
+    def load_from_superquad(cls, file_path: str) -> "SolverData":
+        parsed_data = parse_superquad_file(file_path)
+        data = {}
+        temp = parsed_data.get('temperature', 298.15)
+        data['temperature'] = temp
+        data['stoichiometry'] = np.array(parsed_data['stoichiometry'], dtype=int)
+        data["solid_stoichiometry"] = np.empty(
+            (data["stoichiometry"].shape[0], 0), dtype=int)
+        data["log_beta"] = np.array(parsed_data["log_beta"], dtype=float)
+        data['components'] = parsed_data['components']
+
+        titration_options = [
+            PotentiometryTitrationsParameters(
+                c0=t['initial amount'] / t['starting volume'],
+                ct=t['buret concentration'],
+                electro_active_compoment=t['electroactive'],
+                e0=t['standard potential'],
+                e0_sigma=t['potential error'],
+                slope=(temp + 273.15) / 11.6048 * 2.303,
+                v0=t['starting volume'],
+                v0_sigma=t["volume erro"],
+                v_add=np.array(t["titre"]),
+                emf=np.array(t["potential"]),
+                c0back=t["background_params"][0] if "background_params" in t else 0,
+                ctback=t["background_params"][1] if "background_params" in t else 0,
+                px_range=[[parsed_data["PHI"], parsed_data["PHF"]]],
+            )
+            for t in parsed_data["titrations"]
+        ]
+        
+
+    @classmethod
     def load_from_pyes(cls, pyes_data: str | dict) -> "SolverData":
         if isinstance(pyes_data, str):
             with open(pyes_data, "r") as file:
@@ -547,8 +590,7 @@ class SolverData(BaseModel):
                 list(pyes_data["speciesModel"]["EGF"].values()),
             )
         )
-
-        data["solid_stoichiometry"] = np.row_stack(
+        data["solid_stoichiometry"] = np.vstack(
             [
                 list(pyes_data["solidSpeciesModel"][col].values())
                 for col in data["components"]
@@ -628,17 +670,17 @@ class SolverData(BaseModel):
             weights = "calculated"
         elif potentiometry_data["weightsMode"] == 2:
             weights = "given"
-
+        #breakpoint()
         for t in potentiometry_data["titrations"]:
             titrations.append(
                 PotentiometryTitrationsParameters(
-                    c0=np.array(list(t.get("concView", {}).get("C0", {}).values())),
-                    ct=np.array(list(t.get("concView", {}).get("CT", {}).values())),
+                    c0=np.array(list(t.get("concView", {}).get("C0", {}).values()), dtype=float),
+                    ct=np.array(list(t.get("concView", {}).get("CT", {}).values()), dtype=float),
                     c0_sigma=np.array(
-                        list(t.get("concView", {}).get("Sigma C0", {}).values())
+                        list(t.get("concView", {}).get("Sigma C0", {}).values()), dtype=float
                     ),
                     ct_sigma=np.array(
-                        list(t.get("concView", {}).get("Sigma CT", {}).values())
+                        list(t.get("concView", {}).get("Sigma CT", {}).values()), dtype=float
                     ),
                     electro_active_compoment=t["electroActiveComponent"],
                     e0=t["e0"],
@@ -663,7 +705,8 @@ class SolverData(BaseModel):
         data["potentiometry_opts"] = PotentiometryOptions(
             titrations=titrations,
             weights=weights,
-            beta_flags=[int(v) for v in potentiometry_data["beta_refine_flags"]],
+            beta_flags=[Flags.REFINE if v else Flags.CONSTANT
+                        for v in potentiometry_data["beta_refine_flags"]],
             conc_flags=[],
             pot_flags=[],
         )

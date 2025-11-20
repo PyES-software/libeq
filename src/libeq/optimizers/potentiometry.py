@@ -1,454 +1,339 @@
-from functools import partial
-from itertools import accumulate
+"Test collection for potentiometry data fitting."
+
+import itertools
+from typing import Protocol, TypeAlias, Any
 
 import numpy as np
-
+from numpy.typing import NDArray
 from libeq.data_structure import SolverData
-from libeq.excepts import FailedCalculateConcentrations, TooManyIterations
 from libeq.solver import solve_equilibrium_equations
-from libeq.solver.solver_utils import (
-    _assemble_outer_fixed_point_params,
-    _prepare_common_data,
-    _titration_total_c,
-    _titration_background_ions_c,
-)
+from libeq.consts import Flags, LN10
 
-from .fitter import levenberg_marquardt
+from . import jacobian
+from . import libemf
+from . import libfit
 
 
-def PotentiometryOptimizer(data: SolverData, reporter=None):
-    def f_obj(c):
-        """
-        Given the concentrations of the components, calculate the objective function value.
+FArray: TypeAlias = NDArray[float]
 
-        Parameters:
-        -------
-        x : numpy.ndarray
-            The concentrations of the components.
 
-        Returns:
-        -------
-        emf : numpy.ndarray
-            The calculcated potential from components.
+def refine_indices(flags: list[Flags]):
+    return [i == Flags.REFINE for i in flags]
 
-        """
-        electroactive = fhsel(c)
-        calc_remf = np.log(electroactive)
-        return np.ravel(calc_remf)
 
-    def free_conc(updated_beta, iterations):
-        nonlocal _initial_guess
-        incoming_beta = updated_beta / 2.303
-        gen = ravel(data.log_beta, incoming_beta, beta_flags)
-        log_beta = np.fromiter(gen, dtype=float)
-        # Solve the system of equations
-        try:
-            c, *_ = solve_equilibrium_equations(
-                stoichiometry=stoichiometry,
-                solid_stoichiometry=solid_stoichiometry,
-                original_log_beta=log_beta,
-                original_log_ks=original_log_ks,
-                total_concentration=total_concentration,
-                outer_fiexd_point_params=outer_fixed_point_params,
-                initial_guess=_initial_guess,
-                full=True,
-            )
-        except FailedCalculateConcentrations as e:
-            msg = f"Error in calculating concentrations in iteration n.{iterations}\n\n"
-            e.msg = msg + e.msg
-            e.last_value = log_beta
-            raise e
-        except TooManyIterations as e:
-            msg = f"Too many iterations in calculating concentrations in iteration n.{iterations}\n\n"
-            e.msg = msg + e.msg
-            e.last_value = log_beta
-            raise e
-        _initial_guess = c[:, : stoichiometry.shape[0]]
+class Bridge(Protocol):
+    def __init__(self, data: SolverData):
+        ...
+
+    def accept_values(self) -> None:
+        ...
+
+    def matrices(self) -> tuple[FArray, FArray]:
+        ...
+
+    def size(self) -> tuple[int, int]:
+        ...
+
+    def take_step(self, increments: FArray) -> None:
+        ...
+
+    def tmp_residual(self) -> FArray:
+        ...
+
+    def weights(self) -> FArray:
+        ...
+
+
+class PotentiometryBridge:
+    def __init__(self, data: SolverData, reporter) -> None:
+        self._data = data
+        self._reporter = reporter
+        self._freeconcentration: FArray | None = None
+
+        self._stoich = self._stoichiometry(extended=False)
+        self._stoichx = self._stoichiometry(extended=True)
+        self._nspecies, self._ncomponents = self._stoich.shape
+        self._ntitrations = len(data.potentiometry_opts.titrations)
+        self._experimental_points = [ len(t.v_add) for t in self._titrations() ]
+        self._total_points = sum(self._experimental_points)
+        self._chargesx = np.sum(self._stoichx*data.charges, axis=1)
+
+        # calculate degrees of freedom
+        self._dof_beta = sum(1 for _ in data.potentiometry_opts.beta_flags if _ == Flags.REFINE)
+        self._dof_conc = 0
+        self._slices = []
+        self._slopes = np.zeros(self._total_points)
+        self._emf0 = np.zeros(self._total_points)
+        counter = 0
+        for ntit, titration in enumerate(self._titrations()):
+            self._dof_conc += sum(1 for _ in titration.c0_flags if _ == Flags.REFINE)
+            self._dof_conc += sum(1 for _ in titration.ct_flags if _ == Flags.REFINE)
+            self._slices.append(slice(counter, counter+len(titration.emf)))
+            self._slopes[self._slices[-1]] = titration.slope / LN10
+            self._emf0[self._slices[-1]] = titration.e0
+            counter += len(titration.emf)
+        self._dof = self._dof_beta + self._dof_conc
+
+        ##> self._hindices
+        self._hindices = []
+        for titration in data.potentiometry_opts.titrations:
+            self._hindices.extend(len(titration.v_add) * [titration.electro_active_compoment])
+
+        ##> self._experimental_remf
+        self._experimental_emf = np.concatenate([t.emf for t in data.potentiometry_opts.titrations])
+
+        self._bmatrixt = np.concatenate([jacobian.bmatrix_t(t.v_add, t.v0, self._ncomponents)
+                                         for t in self._titrations()])
+
+        self._bmatrixb = np.concatenate([jacobian.bmatrix_b(t.v_add, t.v0, self._ncomponents)
+                                         for t in self._titrations()])
+
+        self._weights = np.concatenate([libemf.emf_weights(t.v_add, t.v0_sigma, t.emf, t.e0_sigma)
+            for t in data.potentiometry_opts.titrations])
+
+        # initial variable vector
+        self._idx_refinable = []
+        idx_refinable_beta = refine_indices(self._data.potentiometry_opts.beta_flags)
+        self._idx_refinable.extend(idx_refinable_beta)
+        beta_to_refine = np.extract(idx_refinable_beta, self._data.log_beta)
+        concs_to_refine = []
+
+        for titration in self._data.potentiometry_opts.titrations:
+            if titration.c0_flags:
+                assert len(titration.c0_flags) == self._ncomponents
+                idx_refinable_c0 = refine_indices(titration.c0_flags)
+            else:
+                idx_refinable_c0 = self._ncomponents*[False]
+            self._idx_refinable.extend(idx_refinable_c0)
+            concs_to_refine.append(np.extract(idx_refinable_c0, titration.c0))
+
+            if titration.ct_flags:
+                assert len(titration.ct_flags) == self._ncomponents
+                idx_refinable_ct = refine_indices(titration.ct_flags)
+            else:
+                idx_refinable_ct = self._ncomponents*[False]
+            self._idx_refinable.extend(idx_refinable_ct)
+
+            concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct))
+
+        self._variables = np.concatenate([beta_to_refine*LN10, *concs_to_refine])
+        self._step = np.zeros(self._dof, dtype=float)
+
+    def accept_values(self) -> None:
+        "Accepts the step values and consolidates the data."
+        self._variables += self._step
+        self._step[...] = 0.0
+
+    def final_values(self):
+        yield self._beta()
+        yield from self._titration_parameters()
+
+    def iteration_history(self, **kwargs):
+        ...
+
+    def matrices(self) -> tuple[FArray, FArray]:
+        "Return the jacobian and the residual arrays."
+        # 1. calculate free concentrations
+        freec = self._calc_free_concs(initial=True, update=True)
+        assert freec.shape == (self._total_points, self._nspecies + self._ncomponents)
+
+        # 2. calculate A
+        amatrix = jacobian.amatrix(freec, self._stoichx)
+        assert amatrix.shape == (self._total_points, self._ncomponents, self._ncomponents)
+
+        # 3. calculate jacobian part referring to beta
+        dlogc_dlogbeta = jacobian.dlogcdlogbeta(amatrix, freec, self._stoich)
+        assert dlogc_dlogbeta.shape == (self._total_points, self._ncomponents, self._nspecies)
+        jbeta = dlogc_dlogbeta
+
+        # 4. calculate jacobian part referring to titration parameters
+        _jc0 = jacobian.solve_xmatrix(amatrix, self._bmatrixt)
+        _jct = jacobian.solve_xmatrix(amatrix, self._bmatrixb)
+        jtit = np.zeros((self._total_points, self._ncomponents, 2*self._ntitrations*self._ncomponents), dtype=float)
+        _js = [np.concatenate((_jc0[s], _jct[s]), axis=2) for s in self._slices]
+        for n, s1 in enumerate(self._slices):
+            s2 = slice(n*2*self._ncomponents, (n+1)*2*self._ncomponents)
+            jtit[s1, :, s2] = _js[n]
+
+        # 5. compute the total jacobian
+        jac = self._slopes[:, None, None] * np.concatenate([jbeta, jtit], axis=2)
+        assert jac.shape == (self._total_points, self._ncomponents, self._nspecies + 2*self._ncomponents*self._ntitrations)
+
+        # 6. remove non refined parts
+        trimmed_jac1 = jac[..., self._idx_refinable]
+        trimmed_jac2 = trimmed_jac1[np.arange(self._total_points), self._hindices].copy()
+
+        # 7. compute residual
+        residual = self.__calculate_residual(freec)
+
+        return trimmed_jac2, residual
+
+    def relative_change(self, step):
+        return step/self._variables
+
+    def report_raw(self, text):
+        print(text)
+
+    def report_step(self, **kwargs):
+        kwargs['log_beta'] = self._beta()
+        kwargs['stoichiometry'] = self._stoich
+        self._reporter(**kwargs)
+
+    def size(self) -> tuple[int, int]:
+        "Return number of points, number os variables."
+        return self._total_points, self._dof
+
+    def take_step(self, increments: FArray) -> None:
+        if increments.shape != self._step.shape:
+            raise ValueError(f"Shape mismatch: {increments.shape} != {self._step.shape}")
+        self._step[:] = increments[:]
+
+    def tmp_residual(self) -> FArray:
+        freec = self._calc_free_concs(initial=True, update=False)
+        return self.__calculate_residual(freec)
+
+    def weights(self) -> FArray:
+        return np.diag(self._weights)
+
+    @property
+    def degrees_of_freedom(self) -> int:
+        return self._dof
+
+    @property
+    def number_of_titrations(self) -> int:
+        return self._ntitrations
+
+    def _analytical_concentration(self) -> FArray:
+        aconc = []
+        for titration, (c0, ct) in zip(self._titrations(), self._titration_parameters()):
+            aux = (c0[None, :] * titration.v0 + ct[None, :] * titration.v_add[:, None]) / \
+                (titration.v0 + titration.v_add[:, None])
+            aconc.append(aux)
+        return np.concatenate(aconc, axis=0)
+
+    def _background_concentration(self) -> FArray:
+        # bconc = []
+        # for titration, (c0b, ctb) in zip(self._data.potentiometry_opts.titrations,
+        #                                  self._titration_parameters()):
+        #     aux = (c0b[None, :] * titration.v0 + ctb[None, :] * titration.v_add[:, None]) / \
+        #         (titration.v0 + titration.v_add[:, None])
+        #     bconc.append(aux)
+        bconc = [
+            (titration.c0back * titration.v0 + titration.ctback * titration.v_add[:, None]) / \
+                (titration.v0 + titration.v_add[:, None])
+            for titration in self._titrations()
+        ]
+        return np.concatenate(bconc, axis=0)
+
+    def _beta(self):
+        beta = self._data.log_beta.copy()
+        idx = refine_indices(self._data.potentiometry_opts.beta_flags)
+        beta[idx] = (self._variables[:self._dof_beta] + self._step[:self._dof_beta]) / LN10
+        return beta
+
+    def _stoichiometry(self, extended=False):
+        "Get stoichiometry array."
+        number_components = self._data.stoichiometry.shape[0]
+        if extended:
+            return np.vstack((np.eye(number_components, dtype=int),
+                              np.array(self._data.stoichiometry.T)))
+        return self._data.stoichiometry.T
+
+    def _titrations(self):
+        yield from iter(self._data.potentiometry_opts.titrations)
+
+    def _titration_parameters(self):
+        itx = iter(self._variables[self._dof_beta:].tolist())
+        itd = iter(self._step[self._dof_beta:].tolist())
+
+        def select(c, flags):
+            x = c.copy()
+            for n, i in enumerate(flags):
+                if i == Flags.REFINE:
+                    x[i] = next(itx) + next(itd)
+            return x
+
+        for titration in self._titrations():
+            c0 = select(titration.c0, titration.c0_flags)
+            ct = select(titration.ct, titration.ct_flags)
+            yield c0, ct
+        
+    def _calc_free_concs(self, initial=False, update=False) -> FArray:
+        _initial_guess = None if initial else self._freeconcentration
+        log_beta = self._beta()
+        total_concentration = self._analytical_concentration()
+
+        #charges = self._data.charges
+        background_ions_concentration = self._background_concentration()
+        independent_component_activity = None
+
+        outer_fixed_point_params = {
+            "ionic_strength_dependence": self._data.ionic_strength_dependence,
+            "reference_ionic_str_species": self._data.reference_ionic_str_species,
+            "reference_ionic_str_solids": self._data.reference_ionic_str_solids,
+            "dbh_values": self._data.dbh_values.copy(),
+            "charges": self._chargesx,
+            "independent_component_activity": independent_component_activity,
+            "background_ions_concentration": background_ions_concentration,
+        }
+        c, *_ = solve_equilibrium_equations(
+            stoichiometry=self._data.stoichiometry,
+            solid_stoichiometry=self._data.solid_stoichiometry,
+            original_log_beta=log_beta,
+            original_log_ks=self._data.log_ks,
+            total_concentration=total_concentration,
+            outer_fiexd_point_params=outer_fixed_point_params,
+            initial_guess=_initial_guess,
+            full=True)
+        if update:
+            self._freeconcentration = c
         return c
 
-    def jacobian(concentration):
-        """
-        Calculate the jacobian matrix of the objective function.
-
-        Parameters:
-        -------
-        x : numpy.ndarray
-            The concentrations of the components.
-
-        Returns:
-        -------
-        jac : numpy.ndarray
-            The jacobian matrix of the objective function.
-
-        """
-        nc = stoichiometry.shape[0]
-        J = np.zeros(shape=(concentration.shape[0], nc, nc))
-        diagonals = np.einsum(
-            "ij,jk->ijk", concentration[:, nc:], np.eye(concentration.shape[1] - nc)
-        )
-        # Compute Jacobian for soluble components only
-        J = stoichiometry @ diagonals @ stoichiometry.T
-        J[:, range(nc), range(nc)] += concentration[:, :nc]
-
-        B = stoichiometry[np.newaxis, ...] * concentration[..., np.newaxis, nc:]
-        dcdb = np.squeeze(np.linalg.solve(J, -B))
-        return fhsel(dcdb[..., np.flatnonzero(beta_flags)]).T
-
-    def text_reporter(*args):
-        print(f"iteration n.{args[0]}")
-        print("x", args[1])
-        print("dx", args[2])
-        print("sigma", args[3])
-        print("----------------\n")
-
-    # Load the n titrations with their potential from the data file
-    slope = [t.slope for t in data.potentiometry_opts.titrations]
-    emf = [t.emf for t in data.potentiometry_opts.titrations]
-    emf0 = [t.e0 for t in data.potentiometry_opts.titrations]
-    v_add = [t.v_add for t in data.potentiometry_opts.titrations]
-    px_ranges = [t.px_range for t in data.potentiometry_opts.titrations]
-    idx_to_keep = [~t.ignored for t in data.potentiometry_opts.titrations]
-
-    reduced_emf = [
-        build_reduced_emf(emf_, emf0_, slope_)
-        for emf_, emf0_, slope_ in zip(emf, emf0, slope)
-    ]
-
-    for i, ranges in enumerate(px_ranges):
-        if ranges:
-            valid_ranges = np.array(
-                [r for r in ranges if not (r[0] == 0 and r[1] == 0)]
-            )
-            if valid_ranges.size > 0:
-                ll_ul = valid_ranges * 2.303
-                emf_values = -reduced_emf[i][:, np.newaxis]
-                idx = np.any(
-                    (emf_values >= ll_ul[:, 0]) & (emf_values <= ll_ul[:, 1]), axis=1
-                )
-                idx &= idx_to_keep[i]
-                idx_to_keep[i] = idx
-        reduced_emf[i] = reduced_emf[i][idx_to_keep[i]]
-        emf[i] = emf[i][idx_to_keep[i]]
-        v_add[i] = v_add[i][idx_to_keep[i]]
-
-    full_emf = np.concatenate(reduced_emf, axis=0).ravel()
-
-    n_exp_points = full_emf.shape[0]
-
-    if data.potentiometry_opts.weights == "constants":
-        weights = np.ones(n_exp_points)
-    elif data.potentiometry_opts.weights == "calculated":
-        e0_sigma = [t.e0_sigma for t in data.potentiometry_opts.titrations]
-        v0_sigma = [t.v0_sigma for t in data.potentiometry_opts.titrations]
-
-        weights = np.concatenate(
-            [
-                compute_weights(emf_, v_add_, e0_sigma_, v0_sigma_)
-                for emf_, v_add_, e0_sigma_, v0_sigma_ in zip(
-                    emf, v_add, e0_sigma, v0_sigma
-                )
-            ],
-            axis=0,
-        ).ravel()
-
-    elif data.potentiometry_opts.weights == "given":
-        raise NotImplementedError("User given weights are not implemented yet.")
-
-    slices = list(accumulate([0] + [s.shape[0] for s in reduced_emf]))
-    electro_active_components = [
-        t.electro_active_compoment for t in data.potentiometry_opts.titrations
-    ]
-    fhsel = partial(hselect, hindices=electro_active_components, slices=slices[:-1])
-
-    beta_flags = np.array(data.potentiometry_opts.beta_flags).astype(int)
-    beta_flags = np.where(beta_flags == -1, 0, beta_flags)
-
-    (
-        stoichiometry,
-        solid_stoichiometry,
-        original_log_beta,
-        original_log_ks,
-        charges,
-        independent_component_activity,
-    ) = _prepare_common_data(data)
-
-    total_concentration = np.vstack(
-        [
-            _titration_total_c(t, i)
-            for t, i in zip(data.potentiometry_opts.titrations, idx_to_keep)
-        ]
-    )
-
-    background_ions_concentration = np.vstack(
-        [
-            _titration_background_ions_c(t, i)
-            for t, i in zip(data.potentiometry_opts.titrations, idx_to_keep)
-        ]
-    )
-
-    original_log_beta = np.tile(original_log_beta, (total_concentration.shape[0], 1))
-    original_log_ks = np.tile(original_log_ks, (total_concentration.shape[0], 1))
-
-    outer_fixed_point_params = _assemble_outer_fixed_point_params(
-        data, charges, background_ions_concentration, independent_component_activity
-    )
-
-    _initial_guess, *_ = solve_equilibrium_equations(
-        stoichiometry=stoichiometry,
-        solid_stoichiometry=solid_stoichiometry,
-        original_log_beta=original_log_beta,
-        original_log_ks=original_log_ks,
-        total_concentration=total_concentration,
-        outer_fiexd_point_params=outer_fixed_point_params,
-        initial_guess=None,
-        full=False,
-    )
-
-    x, concs, return_extra = levenberg_marquardt(
-        np.fromiter(unravel(data.log_beta, beta_flags), dtype=float) * 2.303,
-        full_emf,
-        f_obj,
-        free_conc,
-        jacobian,
-        weights,
-        report=reporter,
-    )
-
-    final_log_beta = np.tile(
-        np.array(list(ravel(data.log_beta, x, data.potentiometry_opts.beta_flags))),
-        (total_concentration.shape[0], 1),
-    )
-
-    concs, final_log_beta, *_ = solve_equilibrium_equations(
-        stoichiometry=stoichiometry,
-        solid_stoichiometry=solid_stoichiometry,
-        original_log_beta=final_log_beta,
-        original_log_ks=original_log_ks,
-        total_concentration=total_concentration,
-        outer_fiexd_point_params=outer_fixed_point_params,
-        initial_guess=concs[:, : stoichiometry.shape[0]],
-        full=True,
-    )
-
-    return_extra["total_concentration"] = total_concentration
-    return_extra["slices"] = slices
-    return_extra["idx_to_keep"] = idx_to_keep
-
-    return_extra["read_potential"] = emf
-
-    reduced_calculated_emf = f_obj(concs)
-    ix_ranges = list(zip(slices, slices[1:] + [concs.shape[0]]))[:-1]
-    calculated_potential = []
-    residuals_potential = []
-    for counter, (i1, i2) in enumerate(ix_ranges):
-        calculated_potential.append(
-            rebuild_emf(reduced_calculated_emf[i1:i2], emf0[counter], slope[counter])
-        )
-        residuals_potential.append(emf[counter] - calculated_potential[counter])
-    return_extra["calculated_potential"] = calculated_potential
-    return_extra["residuals_potential"] = residuals_potential
-
-    b_error, cor_matrix, cov_matrix = fit_final_calcs(
-        return_extra["jacobian"], return_extra["residuals"], return_extra["weights"]
-    )
-
-    # For consistency return only the free concentrations
-    concs = concs[:, : data.nc + data.nf]
-
-    return x, concs, final_log_beta, b_error, cor_matrix, cov_matrix, return_extra
+    def __calculate_residual(self, free_concentrations):
+        assert free_concentrations.shape == (self._total_points, self._nspecies + self._ncomponents)
+        eactive = libemf.hselect(free_concentrations, self._hindices) 
+        calculated_emf = self._emf0 + self._slopes * np.log(eactive)
+        assert calculated_emf.shape == (self._total_points,)
+        residual = self._experimental_emf - calculated_emf
+        return residual
 
 
-def build_reduced_emf(emf, emf0, slope):
+def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     """
-    Build the reduced emf array from the emf, emf0, and slope values.
+    Solve a potentiometry problem. Refine constants and possibly, concentrations.
 
     Parameters:
     -------
-    emf : numpy.ndarray
-        The emf values.
-    emf0 : float
-        The standard emf value.
-    slope : float
-        The slope.
+    data : SolverData
+        The data for the refinement.
 
     Returns:
+        x : 
+            the refined data
+        concs :
+            the final free concentrations
+        final_log_beta :
+            the final refined constant values
+        b_error :
+            the fitting error in the concentration
+        cor_matrix :
+            the correlation matrix
+        cov_matrix :
+            the covariance matrix
+        return_extra :
+            additional information
     -------
-    reduced_emf : numpy.ndarray
-        The reduced emf values.
-
     """
-    return (emf - emf0) / (slope / 2.303)
-
-
-def rebuild_emf(remf, emf0, slope):
-    """
-    Reuild the original emf from the reduced emf, emf0, and slope values.
-
-    Parameters:
-    -------
-    remf : numpy.ndarray
-        The reduced emf values.
-    emf0 : float
-        The standard emf value.
-    slope : float
-        The slope.
-
-    Returns:
-    -------
-    emf : numpy.ndarray
-        The emf values.
-
-    """
-    return (remf * (slope / 2.303)) + emf0
-
-
-def compute_weights(emf, v_add, e_sigma, v_sigma):
-    """
-    Compute the weights for the given emf, v_add, e_sigma, and v_sigma values.
-
-    Parameters:
-    -------
-    emf : numpy.ndarray
-        The emf values.
-    v_add : numpy.ndarray
-        The v_add values.
-    e_sigma : numpy.ndarray
-        The e_sigma values.
-    v_sigma : numpy.ndarray
-        The v_sigma values.
-
-    Returns:
-    -------
-    weights : numpy.ndarray
-        The calculated weights.
-
-    """
-    der2 = np.gradient(emf, v_add) ** 2
-    return 1 / (der2 * v_sigma**2 + e_sigma**2)
-
-
-def hselect(array, hindices, slices):
-    """Select columns that correspond to the electroactive species.
-
-    Given the concentrations array, selects the columns that correspond
-    to the electroactive species.
-
-    Parameters:
-        array (:class:`numpy.ndarray`): The :term:`free concentrations array`
-        hindices (list): List of ints or list of lists of ints with the indices
-            of the electroactive species. Example: [[0,1],[1,2],[3,4],[4,5]].
-            hindices are applied along axis=0
-        slices (list of ints): Where to divide C. Example: [ 0, 5, 10, 15 ]
-            slices are applied along axis=1
-
-    Returns:
-        The part of C which is electroactive
-
-    >>> slices = [0, 4, 7]
-    >>> hindices = [[0,1],[1,2],[3,4]]
-    >>> C = np.array([[ 0.255,  0.638,  0.898,  0.503,  0.418],
-    ...               [ 0.383,  0.789,  0.731,  0.713,  0.629],
-    ...               [ 0.698,  0.080,  0.597,  0.503,  0.456],
-    ...               [ 0.658,  0.399,  0.332,  0.700,  0.294],
-    ...               [ 0.534,  0.556,  0.762,  0.493,  0.510],
-    ...               [ 0.637,  0.065,  0.638,  0.770,  0.879],
-    ...               [ 0.598,  0.193,  0.912,  0.263,  0.118],
-    ...               [ 0.456,  0.680,  0.049,  0.381,  0.872],
-    ...               [ 0.418,  0.456,  0.430,  0.842,  0.172]])
-    >>> hselect(C, hindices, slices)
-    array([[0.255, 0.638], [0.383, 0.789], [0.698, 0.080], [0.658, 0.399],
-           [0.556, 0.762], [0.065, 0.638], [0.193, 0.912], [0.381, 0.872],
-           [0.842, 0.172]])
-    """
-    if slices is None and isinstance(int, hindices):
-        return array[:, hindices, ...]
-
-    if len(hindices) != len(slices):
-        raise TypeError("hindices and slices have wrong size")
-    # libaux.assert_array_dim(2, array)
-
-    # slices → [ 0, 5, 10, 15 ]
-    #          0→4 5→9  10→14  15→end
-    # hindices → [[0,1],[1,2],[3,4],[4,5]]
-    # 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17
-    # -------------  ------------- -------------- --------
-    # 0  0  0  0  0  1  1  1  1  1  3  3  3  3  3  4  4  4
-    # 1  1  1  1  1  2  2  2  2  2  4  4  4  4  4  5  5  5
-
-    num_points = array.shape[0]
-    nslices = (b - a for a, b in zip(slices, slices[1:] + [array.shape[0]]))
-    # y = np.array(sum([n*h for n, h in zip(nslices, hindices)], []))
-    y = np.vstack([np.tile(np.array(h), (n, 1)) for h, n in zip(hindices, nslices)])
-    return np.squeeze(array[np.arange(num_points), y.T, ...].T)
-
-
-def unravel(x, flags):
-    """Unravel data according to flags provided.
-
-    This routine takes an array of data and an array of flags of the same
-    length and returns another array with only the independet variables.
-
-    Parameters:
-        x (iterable): the original data values
-        flags (iterable): the flags indicating how to update x.
-            Values must int. Accepted values are
-
-            * 0: value is to be kept constant
-            * 1: value is to be refined and the corresponding value from x
-              will be substituted by the corresponding value from y.
-            * >2: value is restrained. All places with the same number are
-              refined together and the ratio between them is maintained.
-
-    Returns:
-        generator: Values of **x** processed according to **flags**.
-    """
-    constr_list = []
-    for i, f in zip(x, flags):
-        if f == 1:
-            yield i
-        if f > 1:
-            if f not in constr_list:
-                yield i
-                constr_list.append(f)
-
-
-def ravel(x, y, flags):
-    """Update values from one iterable with other iterable according to flags.
-
-    This function does the opposite action than :func:`unravel`.
-
-    Parameters:
-        x (iterable): the original array values
-        y (iterable): the updated values to be plugged into *x*.
-        flags (sequence): flags indicating how to update *x* with *y*. Accepted
-            values are:
-
-            * 0: value is to be kept constant
-            * 1: value is to be refined and the corresponding value from x
-              will be substituted by the corresponding value from y.
-            * >2: value is restrained. All places with the same number are
-              refined together and the ratio between them is maintained.
-
-    Yields:
-        float: Raveled values.
-    """
-    # indices of the reference parameter for constraining
-    ref_index = {i: flags.index(i) for i in range(2, 1 + max(flags))}
-    ref_val = {}
-
-    ity = iter(y)
-    for i, f in enumerate(flags):
-        if f == 1:  # refinable: return new value
-            yield next(ity)
-        elif f == 0:  # constant: return old value
-            yield x[i]
-        else:  # constrained: return or compute
-            if i == ref_index[f]:
-                val = next(ity)  # reference value: return new value
-                ref_val[f] = val  # and store ref value
-                yield val
-            else:  # other: compute proportional value
-                yield x[i] * ref_val[f] / x[ref_index[f]]
+    bridge: Bridge = PotentiometryBridge(data, reporter)
+    fit_result = libfit.levenberg_marquardt(bridge, debug=True)
+    values = bridge.final_values()
+    final_beta = next(values)
+    final_total_concentration = list(itertools.islice(values, bridge.number_of_titrations))
+    
+    return {
+        'final_beta': final_beta,
+        'final_total_concentration': final_total_concentration
+    }
 
 
 def covariance_fun(J, W, F):
@@ -493,3 +378,43 @@ def fit_final_calcs(jacobian, resids, weights):
         np.dot(cov_diag.reshape((lenD, 1)), cov_diag.reshape((1, lenD)))
     )
     return error_B, correlation, covariance
+
+
+def ravel(x, y, flags):
+    """Update values from one iterable with other iterable according to flags.
+
+    This function does the opposite action than :func:`unravel`.
+
+    Parameters:
+        x (iterable): the original array values
+        y (iterable): the updated values to be plugged into *x*.
+        flags (sequence): flags indicating how to update *x* with *y*. Accepted
+            values are:
+
+            * 0: value is to be kept constant
+            * 1: value is to be refined and the corresponding value from x
+              will be substituted by the corresponding value from y.
+            * >2: value is restrained. All places with the same number are
+              refined together and the ratio between them is maintained.
+
+    Yields:
+        float: Raveled values.
+    """
+    # indices of the reference parameter for constraining
+    ref_index = {i: flags.index(i) for i in range(2, 1 + max(flags))}
+    ref_val = {}
+
+    ity = iter(y)
+    for i, f in enumerate(flags):
+        if f == 1:  # refinable: return new value
+            yield next(ity)
+        elif f == 0:  # constant: return old value
+            yield x[i]
+        else:  # constrained: return or compute
+            if i == ref_index[f]:
+                val = next(ity)  # reference value: return new value
+                ref_val[f] = val  # and store ref value
+                yield val
+            else:  # other: compute proportional value
+                yield x[i] * ref_val[f] / x[ref_index[f]]
+
