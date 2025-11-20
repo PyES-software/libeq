@@ -1,22 +1,19 @@
 """General functions for nonlinear fitting."""
 
-# pylint: disable=possibly-used-before-assignment
-
 import enum
 import math
-from typing import Tuple, Dict, List, Final
+from typing import Dict, Final
 
 import numpy as np
 from numpy.typing import NDArray
 
-# import consts
-import libeq.excepts
+from libeq import consts
+from libeq import excepts
 from . import libmath
-# import report
 
 
-LOGK = 2.3025851      # ln(10) = 1/log(e)
-FloatArray = NDArray[float]
+#LOGK = 2.3025851      # ln(10) = 1/log(e)
+FArray = NDArray[float]
 
 
 class Exec(enum.IntEnum):
@@ -71,21 +68,19 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     DAMPING_UPF: Final[float] = 11.0
     DAMPING_LOWF: Final[float] = 9.0
     DAMPING0: Final[float] = 1e3
-    report_buffer = kwargs.get('report', DummyReport())
     one_iter = kwargs.get('one_iter', False)
     chisq_threshold: Final[float] = kwargs.pop('chisq_threshold', 1e-3)
     grad_threshold: Final[float] = kwargs.pop('grad_threshold', 1e-7)
     step_threshold: Final[float] = kwargs.pop('step_threshold', 1e-7)
     test_threshold: Final[float] = kwargs.pop('test_threshold', 1e-7)
     max_iterations = kwargs.pop('max_iterations', 200)
-    quiet_maxits = kwargs.get('quiet_maxits', False)
     damping: float = kwargs.pop('damping', DAMPING0)
     debug: bool = kwargs.pop('debug', False)
 
     n_points, n_vars = bridge.size()
 
     iteration: int = 0
-    W: FloatArray = bridge.weights()
+    W: FArray = bridge.weights()
     chisq: float = 1e99
     sigma: float = math.inf
     execution_status: Exec = Exec.INITIALISING
@@ -101,12 +96,17 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
             resid: FArray = bridge.tmp_residual()
             gradient: FArray = J.T @ W @ resid
             gradient_norm = np.linalg.norm(gradient)
-            try:
-                dx = np.linalg.solve(M+damping*D, gradient)
-            except np.linalg.LinAlgError as exc:
+            A: FArray = M+damping*D
+            if is_near_singular_lstsq(A):
                 execution_status = Exec.SINGULAR_MATRIX
-                exception_thrown = exc
-                break
+                dx = np.zeros(n_vars)
+            else:
+                try:
+                    dx = np.linalg.solve(A, gradient)
+                except np.linalg.LinAlgError as exc:
+                    execution_status = Exec.SINGULAR_MATRIX
+                    exception_thrown = exc
+                    break
 
         bridge.take_step(dx)                # Step bridge values and build matrices
         if execution_status == Exec.RUNNING:
@@ -115,15 +115,17 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
         elif execution_status == Exec.INITIALISING: 
             test = test_threshold+1
 
-        if test < test_threshold:                               # step REJECTED
+        if (test < test_threshold) or (execution_status == Exec.SINGULAR_MATRIX):
+            # step REJECTED 
             damping = min((damping*DAMPING_UPF, DAMPING_UPPER))
-        else:                                                   # step ACCEPTED
+        else:          
+            # step ACCEPTED
             bridge.accept_values()
             if one_iter:
                 break
             J, resid = bridge.matrices()
-            M: FloatArray = J.T @ W @ J
-            D: FloatArray = np.diag(np.diag(M))
+            M: FArray = J.T @ W @ J
+            D: FArray = np.diag(np.diag(M))
 
             if execution_status == Exec.RUNNING:
                 chisq = new_chisq
@@ -282,7 +284,7 @@ def simplex(x0, y, fnc, free_conc, weights, **kwargs):
         #  simplex S
         _h, _s, _l = _hsl(f)
 
-        _report(iteration=iteration, x=x[_l]/LOGK, chisq=f[_l])
+        _report(iteration=iteration, x=x[_l]/consts.LN10, chisq=f[_l])
 
         # v. Centroid: Calculate the centroid c of the best side—this is the
         #   one opposite the worst vertex xₕ
@@ -418,7 +420,7 @@ def final_params(jacobian, weights, resid):
     return error_beta, covar, correl
 
 
-def _centroid(x: FloatArray):
+def _centroid(x: FArray):
     """Given a list of vectors, return the centroid.
 
     Parameters:
@@ -454,6 +456,17 @@ def _hsl(lst):
 def fit_sigma(residuals: np.ndarray, weights: np.ndarray, npoints: int, nparams: int) -> float:
     """Calculate the fit's sigma value for a given set of residuals and weights."""
     return np.sum(weights*residuals**2)/(npoints-nparams)
+
+
+def is_near_singular_lstsq(matrix, thresh=1e-13):
+    """
+    Test whether the matrix is near singular.
+    """
+    result = np.linalg.lstsq(matrix, np.eye(matrix.shape[1]), rcond=thresh)
+    rank = result[2]                   # third return value = rank in NumPy ≥ 2.0
+    s = result[3]                      # singular values
+    rcond_est = s[-1] / s[0] if len(s) > 1 else 0.0
+    return rcond_est < thresh or rank < min(matrix.shape)
 
 
 class DummyReport:
