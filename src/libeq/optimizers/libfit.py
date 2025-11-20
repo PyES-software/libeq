@@ -73,7 +73,7 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     grad_threshold: Final[float] = kwargs.pop('grad_threshold', 1e-7)
     step_threshold: Final[float] = kwargs.pop('step_threshold', 1e-7)
     test_threshold: Final[float] = kwargs.pop('test_threshold', 1e-7)
-    max_iterations = kwargs.pop('max_iterations', 200)
+    max_iterations = kwargs.pop('max_iterations', 20)
     damping: float = kwargs.pop('damping', DAMPING0)
     debug: bool = kwargs.pop('debug', False)
 
@@ -87,7 +87,6 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     J: FArray
     M: FArray = np.array([])
     D: FArray = np.array([])
-    # breakpoint()
 
     while iteration < max_iterations:
         if execution_status == Exec.INITIALISING:
@@ -96,17 +95,12 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
             resid: FArray = bridge.tmp_residual()
             gradient: FArray = J.T @ W @ resid
             gradient_norm = np.linalg.norm(gradient)
-            A: FArray = M+damping*D
-            if is_near_singular_lstsq(A):
+            try:
+                dx = np.linalg.solve(M+damping*D, gradient)
+            except np.linalg.LinAlgError as exc:
                 execution_status = Exec.SINGULAR_MATRIX
-                dx = np.zeros(n_vars)
-            else:
-                try:
-                    dx = np.linalg.solve(A, gradient)
-                except np.linalg.LinAlgError as exc:
-                    execution_status = Exec.SINGULAR_MATRIX
-                    exception_thrown = exc
-                    break
+                exception_thrown = exc
+                break
 
         bridge.take_step(dx)                # Step bridge values and build matrices
         if execution_status == Exec.RUNNING:
@@ -458,7 +452,7 @@ def fit_sigma(residuals: np.ndarray, weights: np.ndarray, npoints: int, nparams:
     return np.sum(weights*residuals**2)/(npoints-nparams)
 
 
-def is_near_singular_lstsq(matrix, thresh=1e-13):
+def is_near_singular_lstsq(matrix, thresh=1e-3):
     """
     Test whether the matrix is near singular.
     """
@@ -466,6 +460,7 @@ def is_near_singular_lstsq(matrix, thresh=1e-13):
     rank = result[2]                   # third return value = rank in NumPy ≥ 2.0
     s = result[3]                      # singular values
     rcond_est = s[-1] / s[0] if len(s) > 1 else 0.0
+    print(f">>> {rcond_est}  {rank}")
     return rcond_est < thresh or rank < min(matrix.shape)
 
 

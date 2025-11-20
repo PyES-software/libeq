@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-libeq = "..src"
+libeq = "src"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
