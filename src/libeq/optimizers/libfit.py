@@ -1,4 +1,7 @@
-"""General functions for nonlinear fitting."""
+"""General functions for nonlinear fitting.
+
+Author: Salvador Blasco <salvador.blasco@uv.es>
+"""
 
 import enum
 import math
@@ -12,7 +15,6 @@ from libeq import excepts
 from . import libmath
 
 
-#LOGK = 2.3025851      # ln(10) = 1/log(e)
 FArray = NDArray[float]
 
 

@@ -100,7 +100,7 @@ def gobj(concentration, stoichiometry, solubility_product):
 
 
 def solid_factor(conc_solid, stoich_solid):
-    """Factor containing the contribution of the precipitated solid.
+    r"""Factor containing the contribution of the precipitated solid.
 
     This term is defined as :math:`\sum_j^{E_2} q_{ji}C_j`
     """

@@ -2,29 +2,30 @@
 name = "libeq"
 version = "0.4.0"
 description = "Library for solving equilibrium in solution problems"
-authors = [{name="Lorenzo Castellino", email="<castellino96@gmail.com>"},
-           {name="Salvador Blasco", email="<salvador.blasco@uv.es>"}]
+authors = [{name="Lorenzo Castellino", email="castellino96@gmail.com"},
+           {name="Salvador Blasco", email="salvador.blasco@uv.es"}]
 readme = "README.md"
 packages = [{ include = "libeq", from = "src" }]
 requires-python = ">= 3.10"
 dependencies = [
- "numpy",
+ "numpy", "pytest", "pandas"
 ]
 
 [project.scripts]
 libeq = "src"
+pythonpath = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
 [tool.run.ini_options]
-pythonpath = ["src"]
+pythonpath = "src"
 
 [tool.mypy]
 mypy_path = "src"
 
 [dependency-groups]
 dev = [
-    "numpy>=2.2.6",
-    "pytest>=8.4.2",
+    "numpy>=1.2",
+    "pytest>=8.4",
 ]
