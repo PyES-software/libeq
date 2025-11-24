@@ -105,7 +105,8 @@ class PotentiometryBridge:
             else:
                 idx_refinable_c0 = self._ncomponents*[False]
             self._idx_refinable.extend(idx_refinable_c0)
-            concs_to_refine.append(np.extract(idx_refinable_c0, titration.c0))
+            if any(idx_refinable_c0):
+                concs_to_refine.extend(np.extract(idx_refinable_c0, titration.c0).tolist())
 
             if titration.ct_flags:
                 assert len(titration.ct_flags) == self._ncomponents
@@ -113,10 +114,10 @@ class PotentiometryBridge:
             else:
                 idx_refinable_ct = self._ncomponents*[False]
             self._idx_refinable.extend(idx_refinable_ct)
+            if any(idx_refinable_ct):
+                concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct).tolist())
 
-            concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct))
-
-        self._variables = np.concatenate([beta_to_refine*LN10, *concs_to_refine])
+        self._variables = np.concatenate([beta_to_refine*LN10, np.array(concs_to_refine)])
         self._step = np.zeros(self._dof, dtype=float)
 
     def accept_values(self) -> None:
