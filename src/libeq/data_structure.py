@@ -590,11 +590,11 @@ class SolverData(BaseModel):
                 list(pyes_data["speciesModel"]["EGF"].values()),
             )
         )
-        data["solid_stoichiometry"] = np.vstack(
+        data["solid_stoichiometry"] = np.array(
             [
                 list(pyes_data["solidSpeciesModel"][col].values())
                 for col in data["components"]
-            ]
+            ], dtype=int
         )
         data["log_ks"] = np.array(
             list(pyes_data["solidSpeciesModel"]["LogKs"].values())
