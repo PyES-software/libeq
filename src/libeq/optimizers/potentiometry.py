@@ -176,12 +176,15 @@ class PotentiometryBridge:
         print(text)
 
     def report_step(self, **kwargs):
+        """
+        Pass refinement parameters on each iteration to report.
+        """
         kwargs['log_beta'] = self._beta()
         kwargs['stoichiometry'] = self._stoich
         self._reporter(**kwargs)
 
     def size(self) -> tuple[int, int]:
-        "Return number of points, number os variables."
+        "Return number of points, number of variables."
         return self._total_points, self._dof
 
     def take_step(self, increments: FArray) -> None:
@@ -198,10 +201,16 @@ class PotentiometryBridge:
 
     @property
     def degrees_of_freedom(self) -> int:
+        """
+        The number of variables to refine.
+        """
         return self._dof
 
     @property
     def number_of_titrations(self) -> int:
+        """
+        The number of titrations sets available.
+        """
         return self._ntitrations
 
     def _analytical_concentration(self) -> FArray:
@@ -241,6 +250,9 @@ class PotentiometryBridge:
         return self._data.stoichiometry.T
 
     def _titrations(self):
+        """
+        Iterate over the titrations.
+        """
         yield from iter(self._data.potentiometry_opts.titrations)
 
     def _titration_parameters(self):
