@@ -183,6 +183,7 @@ class PotentiometryBridge:
         Pass refinement parameters on each iteration to report.
         """
         kwargs['log_beta'] = self._beta()
+        kwargs['increment'] /= LN10
         kwargs['stoichiometry'] = self._stoich
         kwargs['any beta refined'] = self._any_beta_refined
         kwargs['any conc refined'] = self._any_conc_refined
