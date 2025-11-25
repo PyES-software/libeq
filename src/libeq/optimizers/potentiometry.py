@@ -251,7 +251,7 @@ class PotentiometryBridge:
             x = c.copy()
             for n, i in enumerate(flags):
                 if i == Flags.REFINE:
-                    x[i] = next(itx) + next(itd)
+                    x[n] = next(itx) + next(itd)
             return x
 
         for titration in self._titrations():
