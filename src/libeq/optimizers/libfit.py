@@ -127,6 +127,7 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
                 chisq = new_chisq
                 sigma = fit_sigma(resid, np.diag(W), n_points, n_vars)
                 bridge.report_step(iteration=iteration, 
+                                   increment=dx,
                                    damping=damping, 
                                    chisq=chisq/bridge.degrees_of_freedom, 
                                    sigma=sigma,

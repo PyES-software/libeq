@@ -94,6 +94,7 @@ class PotentiometryBridge:
         # initial variable vector
         self._idx_refinable = []
         idx_refinable_beta = refine_indices(self._data.potentiometry_opts.beta_flags)
+        self._any_beta_refined = any(idx_refinable_beta)
         self._idx_refinable.extend(idx_refinable_beta)
         beta_to_refine = np.extract(idx_refinable_beta, self._data.log_beta)
         concs_to_refine = []
@@ -116,6 +117,8 @@ class PotentiometryBridge:
             self._idx_refinable.extend(idx_refinable_ct)
             if any(idx_refinable_ct):
                 concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct).tolist())
+
+        self._any_conc_refined = (len(concs_to_refine) > 0)
 
         self._variables = np.concatenate([beta_to_refine*LN10, np.array(concs_to_refine)])
         self._step = np.zeros(self._dof, dtype=float)
@@ -181,6 +184,9 @@ class PotentiometryBridge:
         """
         kwargs['log_beta'] = self._beta()
         kwargs['stoichiometry'] = self._stoich
+        kwargs['any beta refined'] = self._any_beta_refined
+        kwargs['any conc refined'] = self._any_conc_refined
+        kwargs['titration params'] = list(self._titration_parameters())
         self._reporter(**kwargs)
 
     def size(self) -> tuple[int, int]:
@@ -338,7 +344,7 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     -------
     """
     bridge: Bridge = PotentiometryBridge(data, reporter)
-    fit_result = libfit.levenberg_marquardt(bridge, debug=True)
+    fit_result = libfit.levenberg_marquardt(bridge)  #, debug=True)
     values = bridge.final_values()
     final_beta = next(values)
     final_total_concentration = list(itertools.islice(values, bridge.number_of_titrations))
