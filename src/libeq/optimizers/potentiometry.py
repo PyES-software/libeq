@@ -34,7 +34,7 @@ class Bridge(Protocol):
     def size(self) -> tuple[int, int]:
         ...
 
-    def take_step(self, increments: FArray) -> None:
+    def trial_step(self, increments: FArray) -> None:
         ...
 
     def tmp_residual(self) -> FArray:
@@ -123,17 +123,17 @@ class PotentiometryBridge:
         self._variables = np.concatenate([beta_to_refine*LN10, np.array(concs_to_refine)])
         self._step = np.zeros(self._dof, dtype=float)
 
-    def accept_values(self) -> None:
+    def accept_step(self) -> None:
         "Accepts the step values and consolidates the data."
         self._variables += self._step
+        self._step[...] = 0.0
+
+    def reject_step(self) -> None:
         self._step[...] = 0.0
 
     def final_values(self):
         yield self._beta()
         yield from self._titration_parameters()
-
-    def iteration_history(self, **kwargs):
-        ...
 
     def matrices(self) -> tuple[FArray, FArray]:
         "Return the jacobian and the residual arrays."
@@ -165,7 +165,7 @@ class PotentiometryBridge:
 
         # 6. remove non refined parts
         trimmed_jac1 = jac[..., self._idx_refinable]
-        trimmed_jac2 = trimmed_jac1[np.arange(self._total_points), self._hindices].copy()
+        trimmed_jac2 = -trimmed_jac1[np.arange(self._total_points), self._hindices].copy()
 
         # 7. compute residual
         residual = self.__calculate_residual(freec)
@@ -194,7 +194,7 @@ class PotentiometryBridge:
         "Return number of points, number of variables."
         return self._total_points, self._dof
 
-    def take_step(self, increments: FArray) -> None:
+    def trial_step(self, increments: FArray) -> None:
         if increments.shape != self._step.shape:
             raise ValueError(f"Shape mismatch: {increments.shape} != {self._step.shape}")
         self._step[:] = increments[:]
