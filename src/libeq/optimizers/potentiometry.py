@@ -211,7 +211,7 @@ class PotentiometryBridge:
         """
         The number of variables to refine.
         """
-        return self._dof
+        return sum(self._experimental_points) - self._dof
 
     @property
     def number_of_titrations(self) -> int:
@@ -345,7 +345,7 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     -------
     """
     bridge: Bridge = PotentiometryBridge(data, reporter)
-    fit_result = libfit.levenberg_marquardt(bridge)  #, debug=True)
+    fit_result = libfit.levenberg_marquardt(bridge, debug=False)
     values = bridge.final_values()
     final_beta = next(values)
     final_total_concentration = list(itertools.islice(values, bridge.number_of_titrations))

@@ -60,11 +60,12 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     DAMPING_UPF: Final[float] = 8.0
     DAMPING_LOWF: Final[float] = 3.0
     DAMPING0: Final[float] = 1e-2
-    chisq_threshold: Final[float] = kwargs.pop('chisq_threshold', 1e-4)
-    grad_threshold: Final[float] = kwargs.pop('grad_threshold', 1e-7)
-    step_threshold: Final[float] = kwargs.pop('step_threshold', 1e-7)
-    rho_threshold: Final[float] = kwargs.pop('rho_threshold', 1e-4)
-    max_iterations = kwargs.pop('max_iterations', 20)
+    CHISQ_THRESHOLD: Final[float] = kwargs.pop('chisq_threshold', 1e-2)
+    GRAD_THRESHOLD: Final[float] = kwargs.pop('grad_threshold', 1e-4)
+    STEP_THRESHOLD: Final[float] = kwargs.pop('step_threshold', 1e-4)
+    RHO_THRESHOLD: Final[float] = kwargs.pop('rho_threshold', 1e-4)
+    MAX_ITERATIONS: Final[int] = kwargs.pop('max_iterations', 20)
+
     damping: float = kwargs.pop('damping', DAMPING0)
     debug: bool = kwargs.pop('debug', False)
 
@@ -73,7 +74,6 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     iteration: int = 0
     gradient_norm: float = 0.0
     W: FArray = bridge.weights()
-    chisq: float = 1e99
     sigma: float = math.inf
     execution_status: Exec = Exec.INITIALISING
     J: FArray
@@ -89,7 +89,9 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     D: FArray = np.diag(np.diag(M))
     chisq = float(resid.T @ W @ resid)
 
-    while iteration < max_iterations:
+    execution_status: Exec = Exec.RUNNING
+
+    while iteration < MAX_ITERATIONS:
         try:
             dx = np.linalg.solve(M+damping*D, -gradient)
         except np.linalg.LinAlgError as exc:
@@ -105,7 +107,7 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
         predicted = -(dx @ gradient) - 0.5 * (dx @ (damping * D @ dx))
         rho = actual/predicted if predicted > 1e-12 else 0.0
 
-        if rho > rho_threshold:
+        if rho > RHO_THRESHOLD:
             # step ACCEPTED
             bridge.accept_step()
             chisq = trial_chisq
@@ -117,15 +119,28 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
             gradient_norm = float(np.linalg.norm(gradient))
 
             sigma = fit_sigma(resid, np.diag(W), n_points, n_vars)
-            if execution_status == Exec.RUNNING:
-                bridge.report_step(iteration=iteration, 
-                                   increment=dx,
-                                   damping=damping, 
-                                   chisq=chisq/bridge.degrees_of_freedom, 
-                                   sigma=sigma,
-                                   gradient_norm=gradient_norm)
 
-            if debug and iteration:
+            # exit criteria check
+            exit_chi_value = chisq/bridge.degrees_of_freedom
+            exit_chi = exit_chi_value  < CHISQ_THRESHOLD
+            exit_gradient_value = abs(max(gradient))
+            exit_gradient = gradient_norm  < GRAD_THRESHOLD
+            exit_step_value = max(np.abs(r) for r in bridge.relative_change(dx))
+            exit_step = exit_step_value < STEP_THRESHOLD
+
+            bridge.report_step(iteration=iteration, 
+                               increment=dx,
+                               damping=damping, 
+                               chisq=exit_chi_value,
+                               sigma=sigma,
+                               gradient_norm=gradient_norm,
+                               exit_chi=exit_chi,
+                               exit_gradient_value=exit_gradient_value,
+                               exit_gradient=exit_gradient,
+                               exit_step_value=exit_step_value,
+                               exit_step=exit_step)
+
+            if debug:
                 print(f"iteration={iteration-1}, {damping=:.2e}, {rho=:.4e}, {sigma=:.4e}, {chisq=:.4e}")
                 print(f"\t{dx=}\n\tx={bridge._variables}")
 
@@ -137,37 +152,39 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
                 damping = max(damping / 2.0, DAMPING_LOWER)
         else:
             # step REJECTED 
-            # bridge.reject_step()
-            damping = min((damping*DAMPING_UPF, DAMPING_UPPER))
-            execution_status = Exec.RUNNING
+            bridge.reject_step()
+            damping = damping*DAMPING_UPF
+            if damping > DAMPING_UPPER:
+                execution_status = Exec.ABNORMAL_END
+                break
             continue
 
             if math.isnan(rho) or any(np.isnan(dx)):
                 execution_status = Exec.ABNORMAL_END
                 break
 
-        if chisq/bridge.degrees_of_freedom  < chisq_threshold:
+        if exit_chi:
             execution_status = Exec.NORMAL_END
             if debug:
                 print(f"END: threshold   {chisq/bridge.degrees_of_freedom}<{chisq_threshold}")
                 print(f"\t{dx=}\n\tx={bridge._variables}")
-            bridge.report_raw(f" refinent finished on threshold criteria [{rho}<{chisq_threshold}]\n")
+            # bridge.report_raw(f" refinent finished on threshold criteria [{rho}<{chisq_threshold}]\n")
             break
 
-        if gradient_norm  < grad_threshold:
+        if exit_gradient:
             execution_status = Exec.NORMAL_END
             if debug:
                 print(f"END: gradient   {gradient_norm}<{grad_threshold}")
                 print(f"\tx={bridge._variables}")
-            bridge.report_raw(f"refinent finished on gradient criteria [{gradient_norm}<{grad_threshold}]\n")
+            # bridge.report_raw(f"refinent finished on gradient criteria [{gradient_norm}<{grad_threshold}]\n")
             break
 
-        if (step_size := max(np.abs(r) for r in bridge.relative_change(dx))) < step_threshold:
+        if exit_step:
             execution_status = Exec.NORMAL_END
             if debug:
                 print(f"END: step   {step_size}<{step_threshold}")
                 print(f"\tx={bridge._variables}")
-            bridge.report_raw(f"refinent ended on small step criteria [{step_size}<{step_threshold}]\n")
+            # bridge.report_raw(f"refinent ended on small step criteria [{step_size}<{step_threshold}]\n")
             break
 
         iteration += 1
