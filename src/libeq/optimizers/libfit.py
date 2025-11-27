@@ -146,7 +146,7 @@ def levenberg_marquardt(bridge, **kwargs) -> tuple[Exec, dict]:
                 break
             continue
 
-        if any(exit_sigma, exit_gradient, exit_step):
+        if any((exit_sigma, exit_gradient, exit_step)):
             execution_status = Exec.NORMAL_END
             break
 
