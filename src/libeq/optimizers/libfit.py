@@ -12,14 +12,14 @@ from numpy.typing import NDArray
 
 from libeq import consts
 from libeq import excepts
-from . import libmath
+from .libmath import fit_sigma
 
 
 FArray = NDArray[float]
 
 
 class Exec(enum.IntEnum):
-    "Flag class for execution status."
+    "Flag class for execution and finalisation status."
     INITIALISING = enum.auto()
     RUNNING = enum.auto()
     NORMAL_END = enum.auto()
@@ -28,7 +28,7 @@ class Exec(enum.IntEnum):
     SINGULAR_MATRIX = enum.auto()
 
 
-def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
+def levenberg_marquardt(bridge, **kwargs) -> tuple[Exec, dict]:
     r"""
     Non linear fitting by means of the Levenberg-Marquardt method.
 
@@ -64,25 +64,34 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     GRAD_THRESHOLD: Final[float] = kwargs.pop('grad_threshold', 1e-4)
     STEP_THRESHOLD: Final[float] = kwargs.pop('step_threshold', 1e-4)
     RHO_THRESHOLD: Final[float] = kwargs.pop('rho_threshold', 1e-4)
-    MAX_ITERATIONS: Final[int] = kwargs.pop('max_iterations', 20)
+    MAX_ITERATIONS: Final[int] = kwargs.pop('max_iterations', 100)
 
     damping: float = kwargs.pop('damping', DAMPING0)
     debug: bool = kwargs.pop('debug', False)
 
-    n_points, n_vars = bridge.size()
+    def _gather_info():
+        return {'iteration':iteration, 
+                'increment':dx,
+                'damping':damping, 
+                'chisq':exit_chi_value,
+                'sigma':sigma,
+                'rho': rho,
+                'gradient_norm':gradient_norm,
+                'exit_chi':exit_chi,
+                'exit_gradient_value':exit_gradient_value,
+                'exit_gradient':exit_gradient,
+                'exit_step_value':exit_step_value,
+                'exit_step':exit_step}
 
     iteration: int = 0
     gradient_norm: float = 0.0
-    W: FArray = bridge.weights()
-    sigma: float = math.inf
     execution_status: Exec = Exec.INITIALISING
-    J: FArray
-    M: FArray = np.array([])
-    D: FArray = np.array([])
 
+    n_points, n_vars = bridge.size()
     dx = np.zeros(n_vars)
     bridge.trial_step(dx)
     J, resid = bridge.matrices()
+    W: FArray = bridge.weights()
     gradient: FArray = 2*J.T @ W @ resid
     gradient_norm: float = float(np.linalg.norm(gradient))
     M: FArray = J.T @ W @ J
@@ -92,13 +101,7 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
     execution_status: Exec = Exec.RUNNING
 
     while iteration < MAX_ITERATIONS:
-        try:
-            dx = np.linalg.solve(M+damping*D, -gradient)
-        except np.linalg.LinAlgError as exc:
-            execution_status = Exec.SINGULAR_MATRIX
-            exception_thrown = exc
-            break
-
+        dx = np.linalg.solve(M+damping*D, -gradient)    # it may raise np.linalg.LinAlgError
         bridge.trial_step(dx)
         trial_resid = bridge.tmp_residual()
         trial_chisq = float(trial_resid.T @ W @ trial_resid)
@@ -118,32 +121,21 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
             gradient = 2*J.T @ W @ resid
             gradient_norm = float(np.linalg.norm(gradient))
 
-            sigma = fit_sigma(resid, np.diag(W), n_points, n_vars)
+            sigma: float = fit_sigma(resid, np.diag(W), n_points, n_vars)
 
             # exit criteria check
-            exit_chi_value = chisq/bridge.degrees_of_freedom
+            exit_chi_value = chisq
             exit_chi = exit_chi_value  < CHISQ_THRESHOLD
             exit_gradient_value = abs(max(gradient))
             exit_gradient = gradient_norm  < GRAD_THRESHOLD
             exit_step_value = max(np.abs(r) for r in bridge.relative_change(dx))
             exit_step = exit_step_value < STEP_THRESHOLD
 
-            bridge.report_step(iteration=iteration, 
-                               increment=dx,
-                               damping=damping, 
-                               chisq=exit_chi_value,
-                               sigma=sigma,
-                               gradient_norm=gradient_norm,
-                               exit_chi=exit_chi,
-                               exit_gradient_value=exit_gradient_value,
-                               exit_gradient=exit_gradient,
-                               exit_step_value=exit_step_value,
-                               exit_step=exit_step)
+            bridge.report_step(**_gather_info())                               
 
             if debug:
                 print(f"iteration={iteration-1}, {damping=:.2e}, {rho=:.4e}, {sigma=:.4e}, {chisq=:.4e}")
                 print(f"\t{dx=}\n\tx={bridge._variables}")
-
 
             # Adaptive damping (very effective)
             if rho > 0.75:
@@ -159,14 +151,10 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
                 break
             continue
 
-            if math.isnan(rho) or any(np.isnan(dx)):
-                execution_status = Exec.ABNORMAL_END
-                break
-
         if exit_chi:
             execution_status = Exec.NORMAL_END
             if debug:
-                print(f"END: threshold   {chisq/bridge.degrees_of_freedom}<{chisq_threshold}")
+                print(f"END: threshold   {chisq/bridge.degrees_of_freedom}<{CHISQ_THRESHOLD}")
                 print(f"\t{dx=}\n\tx={bridge._variables}")
             # bridge.report_raw(f" refinent finished on threshold criteria [{rho}<{chisq_threshold}]\n")
             break
@@ -174,7 +162,7 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
         if exit_gradient:
             execution_status = Exec.NORMAL_END
             if debug:
-                print(f"END: gradient   {gradient_norm}<{grad_threshold}")
+                print(f"END: gradient   {gradient_norm}<{GRAD_THRESHOLD}")
                 print(f"\tx={bridge._variables}")
             # bridge.report_raw(f"refinent finished on gradient criteria [{gradient_norm}<{grad_threshold}]\n")
             break
@@ -182,43 +170,18 @@ def levenberg_marquardt(bridge, **kwargs) -> Dict[str, np.ndarray]:
         if exit_step:
             execution_status = Exec.NORMAL_END
             if debug:
-                print(f"END: step   {step_size}<{step_threshold}")
+                print(f"END: step   {step_size}<{STEP_THRESHOLD}")
                 print(f"\tx={bridge._variables}")
             # bridge.report_raw(f"refinent ended on small step criteria [{step_size}<{step_threshold}]\n")
             break
 
         iteration += 1
     else:
-        execution_status = Exec.TOO_MANY_ITERS
-
-    ret = {'jacobian': J,
-           'residuals': resid,
-           'damping': damping,
-           'iterations': iteration}
-    if execution_status == Exec.TOO_MANY_ITERS:
         raise excepts.TooManyIterations(msg=("Maximum number of iterations reached"),
-                                        last_value=ret)
+                                        last_value=_gather_info())
+
     if execution_status == Exec.ABNORMAL_END:
         raise excepts.UnstableIteration(msg=("The iteration is not stable"),
-                                        last_value=ret)
-    if execution_status == Exec.SINGULAR_MATRIX:
-        raise exception_thrown
-    return ret
+                                        last_value=_gather_info())
 
-
-def fit_sigma(residuals: np.ndarray, weights: np.ndarray, npoints: int, nparams: int) -> float:
-    """Calculate the fit's sigma value for a given set of residuals and weights."""
-    return np.sum(weights*residuals**2)/(npoints-nparams)
-
-
-def is_near_singular_lstsq(matrix, thresh=1e-3):
-    """
-    Test whether the matrix is near singular.
-    """
-    result = np.linalg.lstsq(matrix, np.eye(matrix.shape[1]), rcond=thresh)
-    rank = result[2]                   # third return value = rank in NumPy ≥ 2.0
-    s = result[3]                      # singular values
-    rcond_est = s[-1] / s[0] if len(s) > 1 else 0.0
-    print(f">>> {rcond_est}  {rank}")
-    return rcond_est < thresh or rank < min(matrix.shape)
-
+    return execution_status, _gather_info()
