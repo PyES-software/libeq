@@ -140,7 +140,7 @@ def error_params(jacobian, weights):
 
 def fit_sigma(residuals: np.ndarray, weights: np.ndarray, npoints: int, nparams: int) -> float:
     """Calculate the fit's sigma value for a given set of residuals and weights."""
-    return np.sum(weights*residuals**2)/(npoints-nparams)
+    return np.sqrt(np.sum(weights*residuals**2))/(npoints-nparams)
 
 
 def is_near_singular_lstsq(matrix, thresh=1e-3):

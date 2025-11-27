@@ -120,6 +120,7 @@ class PotentiometryBridge:
 
         self._any_conc_refined = (len(concs_to_refine) > 0)
 
+        # very important !! the betas are in natural logarithm!
         self._variables = np.concatenate([beta_to_refine*LN10, np.array(concs_to_refine)])
         self._step = np.zeros(self._dof, dtype=float)
 
