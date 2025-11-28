@@ -124,12 +124,14 @@ class PotentiometryBridge:
         # very important !! the betas are in natural logarithm!
         self._variables = np.concatenate([beta_to_refine*LN10, np.array(concs_to_refine)])
         self._step = np.zeros(self._dof, dtype=float)
+        self._previous_values = np.empty_like(self._variables)
 
         # Calculate free concetrations initially
         self._freeconcentration = self._calc_free_concs(initial=True, update=False)
 
     def accept_step(self) -> None:
         "Update the variables values and reset increments to 0.0."
+        self._previous_values[:] = self._variables
         self._variables += self._step
         self._step[...] = 0.0
 
@@ -193,6 +195,7 @@ class PotentiometryBridge:
         Pass refinement parameters on each iteration to report.
         """
         kwargs['log_beta'] = self._beta()
+        kwargs['previous log beta'] = self._previous_values[self._slice_betas]/LN10
         kwargs['increment'] /= LN10
         kwargs['stoichiometry'] = self._stoich
         kwargs['any beta refined'] = self._any_beta_refined
@@ -242,12 +245,6 @@ class PotentiometryBridge:
         return np.concatenate(aconc, axis=0)
 
     def _background_concentration(self) -> FArray:
-        # bconc = []
-        # for titration, (c0b, ctb) in zip(self._data.potentiometry_opts.titrations,
-        #                                  self._titration_parameters()):
-        #     aux = (c0b[None, :] * titration.v0 + ctb[None, :] * titration.v_add[:, None]) / \
-        #         (titration.v0 + titration.v_add[:, None])
-        #     bconc.append(aux)
         bconc = [
             (titration.c0back * titration.v0 + titration.ctback * titration.v_add[:, None]) / \
                 (titration.v0 + titration.v_add[:, None])
@@ -259,7 +256,6 @@ class PotentiometryBridge:
         beta = self._data.log_beta.copy()
         idx = refine_indices(self._data.potentiometry_opts.beta_flags)
         beta[idx] = (self._variables[self._slice_betas] + self._step[self._slice_betas]) / LN10
-        # beta[idx] = (self._variables[:self._dof_beta] + self._step[:self._dof_beta]) / LN10
         return beta
 
     def _stoichiometry(self, extended=False):

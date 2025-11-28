@@ -70,7 +70,7 @@ def levenberg_marquardt(bridge, **kwargs) -> tuple[Exec, dict]:
 
     def _gather_info():
         return {'iteration':iteration, 
-                'increment':dx/consts.LN10,
+                'increment':dx,
                 'damping':damping, 
                 'chisq':chisq,
                 'sigma':sigma,
@@ -113,8 +113,8 @@ def levenberg_marquardt(bridge, **kwargs) -> tuple[Exec, dict]:
         if rho > RHO_THRESHOLD:
             # step ACCEPTED
             bridge.accept_step()
-            chisq = trial_chisq
 
+            chisq = trial_chisq
             J, resid = bridge.matrices()
             M = J.T @ W @ J
             D = np.diag(np.diag(M))
