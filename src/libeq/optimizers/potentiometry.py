@@ -94,6 +94,7 @@ class PotentiometryBridge:
         # initial variable vector
         self._idx_refinable = []
         idx_refinable_beta = refine_indices(self._data.potentiometry_opts.beta_flags)
+        self._slice_betas = slice(0, sum(1 for _ in idx_refinable_beta if _))
         self._any_beta_refined = any(idx_refinable_beta)
         self._idx_refinable.extend(idx_refinable_beta)
         beta_to_refine = np.extract(idx_refinable_beta, self._data.log_beta)
@@ -124,12 +125,18 @@ class PotentiometryBridge:
         self._variables = np.concatenate([beta_to_refine*LN10, np.array(concs_to_refine)])
         self._step = np.zeros(self._dof, dtype=float)
 
+        # Calculate free concetrations initially
+        self._freeconcentration = self._calc_free_concs(initial=True, update=False)
+
     def accept_step(self) -> None:
-        "Accepts the step values and consolidates the data."
+        "Update the variables values and reset increments to 0.0."
         self._variables += self._step
         self._step[...] = 0.0
 
     def reject_step(self) -> None:
+        """
+        The step is rejected and increments are reset to 0.0 without updating the variables.
+        """
         self._step[...] = 0.0
 
     def final_values(self):
@@ -137,9 +144,11 @@ class PotentiometryBridge:
         yield from self._titration_parameters()
 
     def matrices(self) -> tuple[FArray, FArray]:
-        "Return the jacobian and the residual arrays."
+        """
+        Compute the jacobian and the residual arrays for the accepted step.
+        """
         # 1. calculate free concentrations
-        freec = self._calc_free_concs(initial=True, update=True)
+        freec = self._calc_free_concs(initial=False, update=True)
         assert freec.shape == (self._total_points, self._nspecies + self._ncomponents)
 
         # 2. calculate A
@@ -201,7 +210,10 @@ class PotentiometryBridge:
         self._step[:] = increments[:]
 
     def tmp_residual(self) -> FArray:
-        freec = self._calc_free_concs(initial=True, update=False)
+        """
+        Calculate and return residual for the trial step.
+        """
+        freec = self._calc_free_concs(initial=False, update=False)
         return self.__calculate_residual(freec)
 
     def weights(self) -> FArray:
@@ -246,7 +258,8 @@ class PotentiometryBridge:
     def _beta(self):
         beta = self._data.log_beta.copy()
         idx = refine_indices(self._data.potentiometry_opts.beta_flags)
-        beta[idx] = (self._variables[:self._dof_beta] + self._step[:self._dof_beta]) / LN10
+        beta[idx] = (self._variables[self._slice_betas] + self._step[self._slice_betas]) / LN10
+        # beta[idx] = (self._variables[:self._dof_beta] + self._step[:self._dof_beta]) / LN10
         return beta
 
     def _stoichiometry(self, extended=False):
@@ -280,7 +293,10 @@ class PotentiometryBridge:
             yield c0, ct
         
     def _calc_free_concs(self, initial=False, update=False) -> FArray:
-        _initial_guess = None if initial else self._freeconcentration
+        if initial or self._freeconcentration is None:
+            _initial_guess = None
+        else:
+            _initial_guess = self._freeconcentration[:,:self._ncomponents]
         log_beta = self._beta()
         total_concentration = self._analytical_concentration()
 
