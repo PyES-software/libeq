@@ -172,17 +172,19 @@ class PotentiometryBridge:
             jtit[s1, :, s2] = _js[n]
 
         # 5. compute the total jacobian
-        jac = self._slopes[:, None, None] * np.concatenate([jbeta, jtit], axis=2)
+        # jac = self._slopes[:, None, None] * np.concatenate([jbeta, jtit], axis=2)
+        jac =  np.concatenate([jbeta, jtit], axis=2)
         assert jac.shape == (self._total_points, self._ncomponents, self._nspecies + 2*self._ncomponents*self._ntitrations)
 
         # 6. remove non refined parts
         trimmed_jac1 = jac[..., self._idx_refinable]
-        trimmed_jac2 = -trimmed_jac1[np.arange(self._total_points), self._hindices].copy()
+        trimmed_jac2 = trimmed_jac1[np.arange(self._total_points), self._hindices]
+        trimmed_jac3 = -LN10*self._slopes[:, None] * trimmed_jac2
 
         # 7. compute residual
         residual = self.__calculate_residual(freec)
 
-        return trimmed_jac2, residual
+        return trimmed_jac3, residual
 
     def relative_change(self, step):
         return step/self._variables
@@ -253,6 +255,9 @@ class PotentiometryBridge:
         return np.concatenate(bconc, axis=0)
 
     def _beta(self):
+        """
+        Return log10(beta) for the trial step.
+        """
         beta = self._data.log_beta.copy()
         idx = refine_indices(self._data.potentiometry_opts.beta_flags)
         beta[idx] = (self._variables[self._slice_betas] + self._step[self._slice_betas]) / LN10

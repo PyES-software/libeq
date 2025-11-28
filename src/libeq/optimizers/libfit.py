@@ -62,7 +62,7 @@ def levenberg_marquardt(bridge, **kwargs) -> tuple[Exec, dict]:
     DAMPING0: Final[float] = 1e-2
     SIGMA_THRESHOLD: Final[float] = kwargs.pop('chisq_threshold', 1e-2)
     GRAD_THRESHOLD: Final[float] = kwargs.pop('grad_threshold', 1e-4)
-    STEP_THRESHOLD: Final[float] = kwargs.pop('step_threshold', 1e-4)
+    STEP_THRESHOLD: Final[float] = kwargs.pop('step_threshold', 1e-5)
     RHO_THRESHOLD: Final[float] = kwargs.pop('rho_threshold', 1e-4)
     MAX_ITERATIONS: Final[int] = kwargs.pop('max_iterations', 20)
 
