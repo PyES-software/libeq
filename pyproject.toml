@@ -5,16 +5,19 @@ description = "Library for solving equilibrium in solution problems"
 authors = [{name="Lorenzo Castellino", email="castellino96@gmail.com"},
            {name="Salvador Blasco", email="salvador.blasco@uv.es"}]
 readme = "README.md"
-packages = [{ include = "libeq", from = "src" }]
+# packages = [{ include = "libeq", from = "src" }]
 requires-python = ">= 3.10"
 dependencies = [
  "numpy", "pandas"
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.mypy]
 mypy_path = "src"
 
-[project.optional-dependences]
+[project.optional-dependencies]
 dev = [
     "numpy>=1.2",
     "pytest>=8.4",
@@ -23,8 +26,10 @@ dev = [
 [tool.pytest]
 addopts = ["-ra", "-q"]
 minversion = 6.0
-testpaths = [ "tests", "src"]
+testpaths = [ "tests" ]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-pythonpath = "src"
+
+[pytest]
+pythonpath = ["../src"]
