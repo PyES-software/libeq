@@ -8,23 +8,13 @@ readme = "README.md"
 packages = [{ include = "libeq", from = "src" }]
 requires-python = ">= 3.10"
 dependencies = [
- "numpy", "pytest", "pandas"
+ "numpy", "pandas"
 ]
-
-[project.scripts]
-libeq = "src"
-pythonpath = ["src"]
-
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-
-[tool.run.ini_options]
-pythonpath = "src"
 
 [tool.mypy]
 mypy_path = "src"
 
-[dependency-groups]
+[project.optional-dependences]
 dev = [
     "numpy>=1.2",
     "pytest>=8.4",
