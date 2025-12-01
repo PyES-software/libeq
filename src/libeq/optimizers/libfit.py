@@ -103,12 +103,15 @@ def levenberg_marquardt(bridge, **kwargs) -> tuple[Exec, dict]:
     while iteration < MAX_ITERATIONS:
         dx = np.linalg.solve(M+damping*D, -gradient)    # it may raise np.linalg.LinAlgError
         bridge.trial_step(dx)
-        trial_resid = bridge.tmp_residual()
-        trial_chisq = float(trial_resid.T @ W @ trial_resid)
-
-        actual = chisq - trial_chisq
-        predicted = -(dx @ gradient) - 0.5 * (dx @ (damping * D @ dx))
-        rho = actual/predicted if predicted > 1e-12 else 0.0
+        try:
+            trial_resid = bridge.tmp_residual()
+        except excepts.FailedCalculateConcentrations:
+            rho = -1    # fail step
+        else:
+            trial_chisq = float(trial_resid.T @ W @ trial_resid)
+            actual = chisq - trial_chisq
+            predicted = -(dx @ gradient) - 0.5 * (dx @ (damping * D @ dx))
+            rho = actual/predicted if predicted > 1e-12 else 0.0
 
         if rho > RHO_THRESHOLD:
             # step ACCEPTED
