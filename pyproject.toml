@@ -19,3 +19,12 @@ dev = [
     "numpy>=1.2",
     "pytest>=8.4",
 ]
+
+[tool.pytest]
+addopts = ["-ra", "-q"]
+minversion = 6.0
+testpaths = [ "tests", "src"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+pythonpath = "src"
