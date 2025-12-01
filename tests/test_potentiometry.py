@@ -13,6 +13,10 @@ from libeq.optimizers.potentiometry import Flags
 
 
 class Test_ZnEDTA:
+    """
+    Test potentiometry optimisation using synthetic Zn/EDTA data
+    """
+
     def setup_method(self):
         from .data import data_znedta
         self.data = data_znedta.load_data()
