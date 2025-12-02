@@ -34,7 +34,7 @@ class Bridge(Protocol):
     def size(self) -> tuple[int, int]:
         ...
 
-    def take_step(self, increments: FArray) -> None:
+    def trial_step(self, increments: FArray) -> None:
         ...
 
     def tmp_residual(self) -> FArray:
@@ -94,6 +94,8 @@ class PotentiometryBridge:
         # initial variable vector
         self._idx_refinable = []
         idx_refinable_beta = refine_indices(self._data.potentiometry_opts.beta_flags)
+        self._slice_betas = slice(0, sum(1 for _ in idx_refinable_beta if _))
+        self._any_beta_refined = any(idx_refinable_beta)
         self._idx_refinable.extend(idx_refinable_beta)
         beta_to_refine = np.extract(idx_refinable_beta, self._data.log_beta)
         concs_to_refine = []
@@ -105,7 +107,8 @@ class PotentiometryBridge:
             else:
                 idx_refinable_c0 = self._ncomponents*[False]
             self._idx_refinable.extend(idx_refinable_c0)
-            concs_to_refine.append(np.extract(idx_refinable_c0, titration.c0))
+            if any(idx_refinable_c0):
+                concs_to_refine.extend(np.extract(idx_refinable_c0, titration.c0).tolist())
 
             if titration.ct_flags:
                 assert len(titration.ct_flags) == self._ncomponents
@@ -113,28 +116,41 @@ class PotentiometryBridge:
             else:
                 idx_refinable_ct = self._ncomponents*[False]
             self._idx_refinable.extend(idx_refinable_ct)
+            if any(idx_refinable_ct):
+                concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct).tolist())
 
-            concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct))
+        self._any_conc_refined = (len(concs_to_refine) > 0)
 
-        self._variables = np.concatenate([beta_to_refine*LN10, *concs_to_refine])
+        # very important !! the betas are in natural logarithm!
+        self._variables = np.concatenate([beta_to_refine*LN10, np.array(concs_to_refine)])
         self._step = np.zeros(self._dof, dtype=float)
+        self._previous_values = np.empty_like(self._variables)
 
-    def accept_values(self) -> None:
-        "Accepts the step values and consolidates the data."
+        # Calculate free concetrations initially
+        self._freeconcentration = self._calc_free_concs(initial=True, update=False)
+
+    def accept_step(self) -> None:
+        "Update the variables values and reset increments to 0.0."
+        self._previous_values[:] = self._variables
         self._variables += self._step
+        self._step[...] = 0.0
+
+    def reject_step(self) -> None:
+        """
+        The step is rejected and increments are reset to 0.0 without updating the variables.
+        """
         self._step[...] = 0.0
 
     def final_values(self):
         yield self._beta()
         yield from self._titration_parameters()
 
-    def iteration_history(self, **kwargs):
-        ...
-
     def matrices(self) -> tuple[FArray, FArray]:
-        "Return the jacobian and the residual arrays."
+        """
+        Compute the jacobian and the residual arrays for the accepted step.
+        """
         # 1. calculate free concentrations
-        freec = self._calc_free_concs(initial=True, update=True)
+        freec = self._calc_free_concs(initial=False, update=True)
         assert freec.shape == (self._total_points, self._nspecies + self._ncomponents)
 
         # 2. calculate A
@@ -156,17 +172,18 @@ class PotentiometryBridge:
             jtit[s1, :, s2] = _js[n]
 
         # 5. compute the total jacobian
-        jac = self._slopes[:, None, None] * np.concatenate([jbeta, jtit], axis=2)
+        jac =  np.concatenate([jbeta, jtit], axis=2)
         assert jac.shape == (self._total_points, self._ncomponents, self._nspecies + 2*self._ncomponents*self._ntitrations)
 
         # 6. remove non refined parts
         trimmed_jac1 = jac[..., self._idx_refinable]
-        trimmed_jac2 = trimmed_jac1[np.arange(self._total_points), self._hindices].copy()
+        trimmed_jac2 = trimmed_jac1[np.arange(self._total_points), self._hindices]
+        trimmed_jac3 = -LN10*self._slopes[:, None] * trimmed_jac2
 
         # 7. compute residual
         residual = self.__calculate_residual(freec)
 
-        return trimmed_jac2, residual
+        return trimmed_jac3, residual
 
     def relative_change(self, step):
         return step/self._variables
@@ -175,21 +192,32 @@ class PotentiometryBridge:
         print(text)
 
     def report_step(self, **kwargs):
+        """
+        Pass refinement parameters on each iteration to report.
+        """
         kwargs['log_beta'] = self._beta()
+        kwargs['previous log beta'] = self._previous_values[self._slice_betas]/LN10
+        kwargs['increment'] /= LN10
         kwargs['stoichiometry'] = self._stoich
+        kwargs['any beta refined'] = self._any_beta_refined
+        kwargs['any conc refined'] = self._any_conc_refined
+        kwargs['titration params'] = list(self._titration_parameters())
         self._reporter(**kwargs)
 
     def size(self) -> tuple[int, int]:
-        "Return number of points, number os variables."
+        "Return number of points, number of variables."
         return self._total_points, self._dof
 
-    def take_step(self, increments: FArray) -> None:
+    def trial_step(self, increments: FArray) -> None:
         if increments.shape != self._step.shape:
             raise ValueError(f"Shape mismatch: {increments.shape} != {self._step.shape}")
         self._step[:] = increments[:]
 
     def tmp_residual(self) -> FArray:
-        freec = self._calc_free_concs(initial=True, update=False)
+        """
+        Calculate and return residual for the trial step.
+        """
+        freec = self._calc_free_concs(initial=False, update=False)
         return self.__calculate_residual(freec)
 
     def weights(self) -> FArray:
@@ -197,10 +225,16 @@ class PotentiometryBridge:
 
     @property
     def degrees_of_freedom(self) -> int:
-        return self._dof
+        """
+        The number of variables to refine.
+        """
+        return sum(self._experimental_points) - self._dof
 
     @property
     def number_of_titrations(self) -> int:
+        """
+        The number of titrations sets available.
+        """
         return self._ntitrations
 
     def _analytical_concentration(self) -> FArray:
@@ -212,12 +246,6 @@ class PotentiometryBridge:
         return np.concatenate(aconc, axis=0)
 
     def _background_concentration(self) -> FArray:
-        # bconc = []
-        # for titration, (c0b, ctb) in zip(self._data.potentiometry_opts.titrations,
-        #                                  self._titration_parameters()):
-        #     aux = (c0b[None, :] * titration.v0 + ctb[None, :] * titration.v_add[:, None]) / \
-        #         (titration.v0 + titration.v_add[:, None])
-        #     bconc.append(aux)
         bconc = [
             (titration.c0back * titration.v0 + titration.ctback * titration.v_add[:, None]) / \
                 (titration.v0 + titration.v_add[:, None])
@@ -226,9 +254,12 @@ class PotentiometryBridge:
         return np.concatenate(bconc, axis=0)
 
     def _beta(self):
+        """
+        Return log10(beta) for the trial step.
+        """
         beta = self._data.log_beta.copy()
         idx = refine_indices(self._data.potentiometry_opts.beta_flags)
-        beta[idx] = (self._variables[:self._dof_beta] + self._step[:self._dof_beta]) / LN10
+        beta[idx] = (self._variables[self._slice_betas] + self._step[self._slice_betas]) / LN10
         return beta
 
     def _stoichiometry(self, extended=False):
@@ -240,6 +271,9 @@ class PotentiometryBridge:
         return self._data.stoichiometry.T
 
     def _titrations(self):
+        """
+        Iterate over the titrations.
+        """
         yield from iter(self._data.potentiometry_opts.titrations)
 
     def _titration_parameters(self):
@@ -250,7 +284,7 @@ class PotentiometryBridge:
             x = c.copy()
             for n, i in enumerate(flags):
                 if i == Flags.REFINE:
-                    x[i] = next(itx) + next(itd)
+                    x[n] = next(itx) + next(itd)
             return x
 
         for titration in self._titrations():
@@ -259,7 +293,10 @@ class PotentiometryBridge:
             yield c0, ct
         
     def _calc_free_concs(self, initial=False, update=False) -> FArray:
-        _initial_guess = None if initial else self._freeconcentration
+        if initial or self._freeconcentration is None:
+            _initial_guess = None
+        else:
+            _initial_guess = self._freeconcentration[:,:self._ncomponents]
         log_beta = self._beta()
         total_concentration = self._analytical_concentration()
 
@@ -325,7 +362,7 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     -------
     """
     bridge: Bridge = PotentiometryBridge(data, reporter)
-    fit_result = libfit.levenberg_marquardt(bridge, debug=True)
+    fit_result = libfit.levenberg_marquardt(bridge, debug=False)
     values = bridge.final_values()
     final_beta = next(values)
     final_total_concentration = list(itertools.islice(values, bridge.number_of_titrations))

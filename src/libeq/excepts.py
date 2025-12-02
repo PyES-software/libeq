@@ -46,3 +46,9 @@ class TooManyIterations(NotConvergenceException):
     This exception is thrown when the maximum number of iterations
     has been reached without meeting the convergence criteria
     """
+
+class SingularMatrix(NotConvergenceException):
+    """
+    When a linear algebra exception is thrown.
+    """
+

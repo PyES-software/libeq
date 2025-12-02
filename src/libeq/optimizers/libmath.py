@@ -136,3 +136,20 @@ def m_matrix(jacobian, weights):
 def error_params(jacobian, weights):
     M = m_matrix(jacobian, weights)
     return np.diag(np.linalg.inv(M))
+
+
+def fit_sigma(residuals: np.ndarray, weights: np.ndarray, npoints: int, nparams: int) -> float:
+    """Calculate the fit's sigma value for a given set of residuals and weights."""
+    return np.sqrt(np.sum(weights*residuals**2))/(npoints-nparams)
+
+
+def is_near_singular_lstsq(matrix, thresh=1e-3):
+    """
+    Test whether the matrix is near singular.
+    """
+    result = np.linalg.lstsq(matrix, np.eye(matrix.shape[1]), rcond=thresh)
+    rank = result[2]                   # third return value = rank in NumPy ≥ 2.0
+    s = result[3]                      # singular values
+    rcond_est = s[-1] / s[0] if len(s) > 1 else 0.0
+    print(f">>> {rcond_est}  {rank}")
+    return rcond_est < thresh or rank < min(matrix.shape)
