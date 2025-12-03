@@ -151,14 +151,19 @@ class PotentiometryBridge:
         variables[self._slice_betas] /= LN10
 
         fvals = self.final_values()
+        eactive = libemf.hselect(self._freeconcentration, self._hindices) 
         
         retval = {
             'final variables': variables,
             'final log beta': next(fvals),
             'final titration parameters': list(fvals),
-            'free concentrations': self._freeconcentration,
+            'free concentration': self._freeconcentration,
             'slices': self._slices,
-            'total concentration': self._analytical_concentration()
+            'total concentration': self._analytical_concentration(),
+            'read emf': self._experimental_emf,
+            'eactive': eactive,
+            'background ion concentration': self._background_concentration(),
+            'weights': self._weights
         }
         return retval
 
@@ -384,19 +389,10 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     -------
     """
     bridge: Bridge = PotentiometryBridge(data, reporter)
-    fit_result = libfit.levenberg_marquardt(bridge, debug=False)
+    fit_status, fit_result = libfit.levenberg_marquardt(bridge, debug=False)
 
-    values = bridge.final_values()
-    final_beta = 
-    # final_total_concentration = list(itertools.islice(values, bridge.number_of_titrations))
-    
-    retval =  {
-        'variables': bridge._variables[bridge._slice_betas]/LN10,
-        'final log beta': next(values),
-        'final titration params': list(values),
-        'free concentration': bridge._freeconcentration
-    }
-    retval.extend(fit_result)
+    retval = bridge.final_result()
+    retval.update(fit_result)
     erB, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
     retval['covariance'] = cov
     retval['correlation'] = cor
