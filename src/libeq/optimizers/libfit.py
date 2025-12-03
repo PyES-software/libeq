@@ -75,6 +75,8 @@ def levenberg_marquardt(bridge, **kwargs) -> tuple[Exec, dict]:
                 'chisq':chisq,
                 'sigma':sigma,
                 'rho': rho,
+                'jacobian': J,
+                'residuals': resid,
                 'gradient_norm':gradient_norm,
                 'exit_sigma':exit_sigma,
                 'exit_gradient_value':exit_gradient_value,

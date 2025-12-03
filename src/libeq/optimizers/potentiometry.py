@@ -28,6 +28,9 @@ class Bridge(Protocol):
     def accept_values(self) -> None:
         ...
 
+    def final_result(self) -> dict:
+        ...
+
     def matrices(self) -> tuple[FArray, FArray]:
         ...
 
@@ -90,6 +93,8 @@ class PotentiometryBridge:
 
         self._weights = np.concatenate([libemf.emf_weights(t.v_add, t.v0_sigma, t.emf, t.e0_sigma)
             for t in data.potentiometry_opts.titrations])
+        if np.any(np.isnan(self._weights)):
+            raise ValueError("Some calculated weight values are NaN")
 
         # initial variable vector
         self._idx_refinable = []
@@ -140,6 +145,23 @@ class PotentiometryBridge:
         The step is rejected and increments are reset to 0.0 without updating the variables.
         """
         self._step[...] = 0.0
+
+    def final_result(self) -> dict:
+        variables = self._variables.copy()
+        variables[self._slice_betas] /= LN10
+
+        fvals = self.final_values()
+        
+        retval = {
+            'final variables': variables,
+            'final log beta': next(fvals),
+            'final titration parameters': list(fvals),
+            'free concentrations': self._freeconcentration,
+            'slices': self._slices,
+            'total concentration': self._analytical_concentration()
+        }
+        return retval
+
 
     def final_values(self):
         yield self._beta()
@@ -363,14 +385,23 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     """
     bridge: Bridge = PotentiometryBridge(data, reporter)
     fit_result = libfit.levenberg_marquardt(bridge, debug=False)
+
     values = bridge.final_values()
-    final_beta = next(values)
-    final_total_concentration = list(itertools.islice(values, bridge.number_of_titrations))
+    final_beta = 
+    # final_total_concentration = list(itertools.islice(values, bridge.number_of_titrations))
     
-    return {
-        'final_beta': final_beta,
-        'final_total_concentration': final_total_concentration
+    retval =  {
+        'variables': bridge._variables[bridge._slice_betas]/LN10,
+        'final log beta': next(values),
+        'final titration params': list(values),
+        'free concentration': bridge._freeconcentration
     }
+    retval.extend(fit_result)
+    erB, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
+    retval['covariance'] = cov
+    retval['correlation'] = cor
+    retval['error log beta'] = erB
+    return retval
 
 
 def covariance_fun(J, W, F):
