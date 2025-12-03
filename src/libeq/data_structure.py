@@ -689,7 +689,7 @@ class SolverData(BaseModel):
                     v0=t["initialVolume"],
                     v0_sigma=t["vSigma"],
                     ignored=np.array(
-                        list(t.get("titrationView", {}).get("0", {}).values())
+                        list(t.get("titrationView", {}).get("0", {}).values()), dtype=bool
                     ),
                     v_add=np.array(
                         list(t.get("titrationView", {}).get("1", {}).values())
