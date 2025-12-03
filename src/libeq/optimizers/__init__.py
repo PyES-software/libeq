@@ -1,1 +1,1 @@
-from .potentiometry import PotentiometryOptimizer  # noqa: F401
+from .potentiometry import PotentiometryOptimizer, Flags  # noqa: F401
