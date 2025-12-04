@@ -470,9 +470,9 @@ def ravel(x, y, flags):
 
     ity = iter(y)
     for i, f in enumerate(flags):
-        if f == 1:  # refinable: return new value
+        if f == Flags.REFINE:  # refinable: return new value
             yield next(ity)
-        elif f == 0:  # constant: return old value
+        elif f == Flags.CONSTANT:  # constant: return old value
             yield x[i]
         else:  # constrained: return or compute
             if i == ref_index[f]:
