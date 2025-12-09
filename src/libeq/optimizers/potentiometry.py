@@ -9,6 +9,7 @@ from libeq.data_structure import SolverData
 from libeq.solver import solve_equilibrium_equations
 from libeq.consts import Flags, LN10
 
+from .. import excepts
 from . import jacobian
 from . import libemf
 from . import libfit
@@ -340,17 +341,21 @@ class PotentiometryBridge:
             "independent_component_activity": independent_component_activity,
             "background_ions_concentration": background_ions_concentration,
         }
-        c, *_ = solve_equilibrium_equations(
-            stoichiometry=self._data.stoichiometry,
-            solid_stoichiometry=self._data.solid_stoichiometry,
-            original_log_beta=log_beta,
-            original_log_ks=self._data.log_ks,
-            total_concentration=total_concentration,
-            outer_fiexd_point_params=outer_fixed_point_params,
-            initial_guess=_initial_guess,
-            full=True)
-        if update:
-            self._freeconcentration = c
+        try:
+            c, *_ = solve_equilibrium_equations(
+                stoichiometry=self._data.stoichiometry,
+                solid_stoichiometry=self._data.solid_stoichiometry,
+                original_log_beta=log_beta,
+                original_log_ks=self._data.log_ks,
+                total_concentration=total_concentration,
+                outer_fiexd_point_params=outer_fixed_point_params,
+                initial_guess=_initial_guess,
+                full=True)
+        except excepts.DivergedIonicStrengthWarning as divergwarn:
+            raise divergwarn
+        else:
+            if update:
+                self._freeconcentration = c
         return c
 
     def __calculate_residual(self, free_concentrations):

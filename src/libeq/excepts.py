@@ -52,3 +52,7 @@ class SingularMatrix(NotConvergenceException):
     When a linear algebra exception is thrown.
     """
 
+class UnstableIteration(NotConvergenceException):
+    """
+    When the iterations are not stable.
+    """
