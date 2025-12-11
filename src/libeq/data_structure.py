@@ -535,35 +535,50 @@ class SolverData(BaseModel):
 
     @classmethod
     def load_from_superquad(cls, file_path: str) -> "SolverData":
+        """
+        Open superquad file and load it into the class.
+        """
+        flags_translate = {0: Flags.CONSTANT, 1: Flags.REFINE}
+
         parsed_data = parse_superquad_file(file_path)
         data = {}
         temp = parsed_data.get('temperature', 298.15)
         data['temperature'] = temp
-        data['stoichiometry'] = np.array(parsed_data['stoichiometry'], dtype=int)
+        data['stoichiometry'] = np.array(parsed_data['stoichiometry'], dtype=int).T
         data["solid_stoichiometry"] = np.empty(
             (data["stoichiometry"].shape[0], 0), dtype=int)
         data["log_beta"] = np.array(parsed_data["log_beta"], dtype=float)
         data['components'] = parsed_data['components']
+        data['charges'] = np.zeros(len(parsed_data['components']), dtype=int)
 
         titration_options = [
             PotentiometryTitrationsParameters(
-                c0=t['initial amount'] / t['starting volume'],
-                ct=t['buret concentration'],
+                c0=np.array(t['initial amount'], dtype=float) / t['starting volume'],
+                ct=np.array(t['buret concentration'], dtype=float),
                 electro_active_compoment=t['electroactive'],
                 e0=t['standard potential'],
                 e0_sigma=t['potential error'],
-                slope=(temp + 273.15) / 11.6048 * 2.303,
+                slope=temp / 11.6048 * 2.303,
                 v0=t['starting volume'],
-                v0_sigma=t["volume erro"],
-                v_add=np.array(t["titre"]),
-                emf=np.array(t["potential"]),
+                v0_sigma=t["volume error"],
+                v_add=np.array(t["titre"], dtype=float),
+                emf=np.array(t["potential"], dtype=float),
                 c0back=t["background_params"][0] if "background_params" in t else 0,
                 ctback=t["background_params"][1] if "background_params" in t else 0,
-                px_range=[[parsed_data["PHI"], parsed_data["PHF"]]],
+                ignored=len(t['titre']) * [False],
+                px_range=[[0, 0]]
             )
             for t in parsed_data["titrations"]
         ]
         
+        data["potentiometry_opts"] = PotentiometryOptions(
+            titrations=titration_options,
+            weights="calculated",
+            beta_flags=[flags_translate[f] for f in parsed_data["beta flags"]],
+            conc_flags=[],
+            pot_flags=[],
+        )
+        return cls(**data)
 
     @classmethod
     def load_from_pyes(cls, pyes_data: str | dict) -> "SolverData":

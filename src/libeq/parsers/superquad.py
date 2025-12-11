@@ -8,10 +8,11 @@ def parse_superquad_file(filename: str) -> dict:
     """
     data = import_superquad_data(filename)
     outdata = {}
+    title = next(data)
     _ = next(data)    # control numbers (unused)
     labels = list(next(data))
     outdata['components'] = labels
-    temperature = next(data)
+    temperature = next(data) + 273.15   # in kelvin
     outdata['temperature'] = temperature
 
     logB = next(data)
@@ -20,6 +21,7 @@ def parse_superquad_file(filename: str) -> dict:
     stoich = next(data)
     outdata['stoichiometry'] = stoich
     beta_flags = next(data)
+    outdata['beta flags'] = beta_flags
 
     titrations = []
     outdata['titrations'] = titrations
