@@ -677,58 +677,59 @@ class SolverData(BaseModel):
             ctback=pyes_data.get("ctback", 0.0),
         )
 
-        potentiometry_data = pyes_data["potentiometry_data"]
-        titrations = []
-        if potentiometry_data["weightsMode"] == 0:
-            weights = "constants"
-        elif potentiometry_data["weightsMode"] == 1:
-            weights = "calculated"
-        elif potentiometry_data["weightsMode"] == 2:
-            weights = "given"
-        #breakpoint()
-        for t in potentiometry_data["titrations"]:
-            titrations.append(
-                PotentiometryTitrationsParameters(
-                    c0=np.array(list(t.get("concView", {}).get("C0", {}).values()), dtype=float),
-                    ct=np.array(list(t.get("concView", {}).get("CT", {}).values()), dtype=float),
-                    c0_sigma=np.array(
-                        list(t.get("concView", {}).get("Sigma C0", {}).values()), dtype=float
-                    ),
-                    ct_sigma=np.array(
-                        list(t.get("concView", {}).get("Sigma CT", {}).values()), dtype=float
-                    ),
-                    electro_active_compoment=t["electroActiveComponent"],
-                    e0=t["e0"],
-                    e0_sigma=t["eSigma"],
-                    slope=t["slope"],
-                    v0=t["initialVolume"],
-                    v0_sigma=t["vSigma"],
-                    ignored=np.array(
-                        list(t.get("titrationView", {}).get("0", {}).values()), dtype=bool
-                    ),
-                    v_add=np.array(
-                        list(t.get("titrationView", {}).get("1", {}).values())
-                    ),
-                    emf=np.array(
-                        list(t.get("titrationView", {}).get("2", {}).values())
-                    ),
-                    c0back=t.get("c0back", 0.0),
-                    ctback=t.get("ctback", 0.0),
-                    px_range=[px_range for px_range in t["pxRange"]],
+        if "potentiometry_data" in pyes_data:
+            potentiometry_data = pyes_data["potentiometry_data"]
+            titrations = []
+            if potentiometry_data["weightsMode"] == 0:
+                weights = "constants"
+            elif potentiometry_data["weightsMode"] == 1:
+                weights = "calculated"
+            elif potentiometry_data["weightsMode"] == 2:
+                weights = "given"
+            #breakpoint()
+            for t in potentiometry_data["titrations"]:
+                titrations.append(
+                    PotentiometryTitrationsParameters(
+                        c0=np.array(list(t.get("concView", {}).get("C0", {}).values()), dtype=float),
+                        ct=np.array(list(t.get("concView", {}).get("CT", {}).values()), dtype=float),
+                        c0_sigma=np.array(
+                            list(t.get("concView", {}).get("Sigma C0", {}).values()), dtype=float
+                        ),
+                        ct_sigma=np.array(
+                            list(t.get("concView", {}).get("Sigma CT", {}).values()), dtype=float
+                        ),
+                        electro_active_compoment=t["electroActiveComponent"],
+                        e0=t["e0"],
+                        e0_sigma=t["eSigma"],
+                        slope=t["slope"],
+                        v0=t["initialVolume"],
+                        v0_sigma=t["vSigma"],
+                        ignored=np.array(
+                            list(t.get("titrationView", {}).get("0", {}).values()), dtype=bool
+                        ),
+                        v_add=np.array(
+                            list(t.get("titrationView", {}).get("1", {}).values())
+                        ),
+                        emf=np.array(
+                            list(t.get("titrationView", {}).get("2", {}).values())
+                        ),
+                        c0back=t.get("c0back", 0.0),
+                        ctback=t.get("ctback", 0.0),
+                        px_range=[px_range for px_range in t["pxRange"]],
+                    )
                 )
+            data["potentiometry_opts"] = PotentiometryOptions(
+                titrations=titrations,
+                weights=weights,
+                beta_flags=[Flags.REFINE if v else Flags.CONSTANT
+                            for v in potentiometry_data["beta_refine_flags"]],
+                conc_flags=[],
+                pot_flags=[],
             )
-        data["potentiometry_opts"] = PotentiometryOptions(
-            titrations=titrations,
-            weights=weights,
-            beta_flags=[Flags.REFINE if v else Flags.CONSTANT
-                        for v in potentiometry_data["beta_refine_flags"]],
-            conc_flags=[],
-            pot_flags=[],
-        )
-        data["potentiometry_opts"].conc_flags = [
-            "constant" if v == 0 else "calculated" if v == 1 else "given"
-            for v in data["potentiometry_opts"].conc_flags
-        ]
+            data["potentiometry_opts"].conc_flags = [
+                "constant" if v == 0 else "calculated" if v == 1 else "given"
+                for v in data["potentiometry_opts"].conc_flags
+            ]
         return cls(**data)
 
     def to_pyes(self, format: Literal["dict", "json"] = "dict") -> dict[str, Any] | str:
