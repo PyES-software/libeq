@@ -8,7 +8,7 @@ from inline_snapshot import external
 
 @pytest.fixture
 def solver_data():
-    return SolverData.load_from_pyes("tests/data/cu_gly_solid.json")
+    return SolverData.load_from_pyes("data/cu_gly_solid.json")
 
 
 def test_titration_fix(solver_data):
