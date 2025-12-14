@@ -2,8 +2,8 @@ name: Run tests on push
 
 on:
   push:
-    paths:
-      - 'src/libeq/**'
+    branches:
+        - main
   workflow_dispatch: {}
 
 jobs:
