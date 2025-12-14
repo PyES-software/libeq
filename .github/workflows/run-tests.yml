@@ -3,7 +3,7 @@ name: Run tests on push
 on:
   push:
     paths:
-      - 'tests/**'
+      - 'src/libeq/**'
   workflow_dispatch: {}
 
 jobs:
