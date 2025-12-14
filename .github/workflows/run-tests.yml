@@ -26,6 +26,6 @@ jobs:
       - name: Run tests
         run: |
           pip install pytest || true
-          export PYTHONPATH=$PWD
+          export PYTHONPATH=$PWD/src/
           pytest -q tests
 
