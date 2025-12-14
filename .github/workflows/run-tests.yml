@@ -26,5 +26,5 @@ jobs:
       - name: Run tests
         run: |
           pip install pytest || true
-          pytest -q tests
+          PYTHONPATH=. pytest -q tests
 
