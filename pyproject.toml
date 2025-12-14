@@ -25,7 +25,7 @@ dev = [
 
 [tool.pytest]
 addopts = ["-ra", "-q"]
-minversion = 6
+minversion = "8.0"
 testpaths = [ "tests" ]
 python_files = "test_*.py"
 python_classes = "Test*"
