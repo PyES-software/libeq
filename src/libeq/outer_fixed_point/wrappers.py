@@ -86,10 +86,7 @@ def outer_fixed_point(
                 log_ks,
             )
 
-        def wrapper(
-            concentration,
-            **kwargs,
-        ):
+        def wrapper(concentration, **kwargs):
             if independent_component_activity is not None:
                 transposed_activity = independent_component_activity[:, np.newaxis]
             else:
@@ -237,7 +234,6 @@ def _select_species_concentration(c, n_components, n_species):
 def _update_formation_constants(
     log_beta, ionic_strength, ref_ionic_strength, dbh_values
 ):
-    # breakpoint()
     cis = np.tile(ionic_strength, ref_ionic_strength.shape[0])
     radqcis = np.sqrt(cis)
     fib2 = radqcis / (1 + (dbh_values["bdh"] * radqcis))
