@@ -2,24 +2,40 @@
 #    uv export --no-hashes --format requirements-txt
 annotated-types==0.7.0
     # via pydantic
+compress-pickle==2.1.0
+    # via pydantic-numpy
+lz4==4.4.5
+    # via compress-pickle
 numpy==2.2.6 ; python_full_version < '3.11'
     # via
     #   libeq
     #   pandas
+    #   pydantic-numpy
 numpy==2.3.4 ; python_full_version >= '3.11'
     # via
     #   libeq
     #   pandas
+    #   pydantic-numpy
 pandas==2.3.3
     # via libeq
 pydantic==2.12.5
-    # via libeq
+    # via
+    #   libeq
+    #   pydantic-numpy
 pydantic-core==2.41.5
     # via pydantic
+pydantic-numpy==8.0.1
+    # via libeq
 python-dateutil==2.9.0.post0
     # via pandas
 pytz==2025.2
     # via pandas
+ruamel-yaml==0.18.16
+    # via pydantic-numpy
+ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14' and platform_python_implementation == 'CPython'
+    # via ruamel-yaml
+semver==3.0.4
+    # via pydantic-numpy
 six==1.17.0
     # via python-dateutil
 typing-extensions==4.15.0

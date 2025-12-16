@@ -11,6 +11,7 @@ dependencies = [
  "numpy",
  "pandas",
  "pydantic>=2.12.5",
+ "pydantic-numpy>=8.0.1",
 ]
 
 [tool.setuptools.packages.find]
