@@ -24,7 +24,7 @@ pydantic==2.12.5
     #   pydantic-numpy
 pydantic-core==2.41.5
     # via pydantic
-pydantic-numpy==8.0.1
+pydantic-numpy
     # via libeq
 python-dateutil==2.9.0.post0
     # via pandas
