@@ -6,16 +6,7 @@ compress-pickle==2.1.0
     # via pydantic-numpy
 lz4==4.4.5
     # via compress-pickle
-numpy==2.2.6 ; python_full_version < '3.11'
-    # via
-    #   libeq
-    #   pandas
-    #   pydantic-numpy
-numpy==2.3.4 ; python_full_version >= '3.11'
-    # via
-    #   libeq
-    #   pandas
-    #   pydantic-numpy
+numpy>=2.2
 pandas==2.3.3
     # via libeq
 pydantic==2.12.5
@@ -30,9 +21,9 @@ python-dateutil==2.9.0.post0
     # via pandas
 pytz==2025.2
     # via pandas
-ruamel-yaml==0.18.16
+ruamel-yaml
     # via pydantic-numpy
-ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14' and platform_python_implementation == 'CPython'
+ruamel-yaml-clib
     # via ruamel-yaml
 semver==3.0.4
     # via pydantic-numpy
