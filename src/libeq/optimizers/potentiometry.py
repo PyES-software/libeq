@@ -186,7 +186,7 @@ class PotentiometryBridge:
     #     yield from self._titration_parameters()
 
     def incorporate_stdev(self, stdev):
-        assert len(stdev) == len(self.variables)
+        assert len(stdev) == len(self._variables)
         self.stdev = stdev
 
     def matrices(self) -> tuple[FArray, FArray]:
