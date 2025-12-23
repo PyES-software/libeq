@@ -727,10 +727,10 @@ class SolverData(BaseModel):
                             for v in potentiometry_data["conc_refine_flags"]],
                 pot_flags=[],
             )
-            data["potentiometry_opts"].conc_flags = [
-                "constant" if v == 0 else "calculated" if v == 1 else "given"
-                for v in data["potentiometry_opts"].conc_flags
-            ]
+            # data["potentiometry_opts"].conc_flags = [
+            #     "constant" if v == 0 else "calculated" if v == 1 else "given"
+            #     for v in data["potentiometry_opts"].conc_flags
+            # ]
         return cls(**data)
 
     def to_pyes(self, format: Literal["dict", "json"] = "dict") -> dict[str, Any] | str:
