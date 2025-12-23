@@ -49,6 +49,7 @@ class Bridge(Protocol):
 
 
 class PotentiometryBridge:
+    bridge.incorporate_stdev(stdev)
     def __init__(self, data: SolverData, reporter) -> None:
         self._data = data
         self._reporter = reporter
@@ -151,13 +152,26 @@ class PotentiometryBridge:
         variables = self._variables.copy()
         variables[self._slice_betas] /= LN10
 
-        fvals = self.final_values()
+        istd = next(self.stdev)
+
+        err_log_beta = [next(istd)/consts.LN10 if f == Flags.REFINE else None
+                        for f in self._data.potentiometry_opts.beta_flags]
+
+        err_titr_parms = [
+            [
+                [next(istd) if c0f == Flags.REFINE else None for c0f in t.c0_flags],
+                [next(istd) if ctf == Flags.REFINE else None for c0f in t.c0_flags]
+            ] for t in self._titrations() ]
+
+        # fvals = self.final_values()
         eactive = libemf.hselect(self._freeconcentration, self._hindices) 
         
         retval = {
             'final variables': variables,
-            'final log beta': next(fvals),
-            'final titration parameters': list(fvals),
+            'final log beta': self._beta(),
+            'error log beta': err_log_beta,
+            'final titration parameters': list(self._titration_parameters()),
+            'error titration parameters': err_titr_parms,
             'free concentration': self._freeconcentration,
             'slices': self._slices,
             'total concentration': self._analytical_concentration(),
@@ -169,9 +183,13 @@ class PotentiometryBridge:
         return retval
 
 
-    def final_values(self):
-        yield self._beta()
-        yield from self._titration_parameters()
+    # def final_values(self):
+    #     yield self._beta()
+    #     yield from self._titration_parameters()
+
+    def incorporate_stdev(self, stdev):
+        assert len(stdev) == len(self.variables)
+        self.stdev = stdev
 
     def matrices(self) -> tuple[FArray, FArray]:
         """
@@ -396,12 +414,14 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     bridge: Bridge = PotentiometryBridge(data, reporter)
     fit_status, fit_result = libfit.levenberg_marquardt(bridge, debug=False)
 
+    stdev, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
+    bridge.incorporate_stdev(stdev)
+
     retval = bridge.final_result()
     retval.update(fit_result)
-    stdev, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
     retval['covariance'] = cov
     retval['correlation'] = cor
-    retval['error log beta'] = stdev[bridge._slice_betas] if bridge._any_beta_refined else None
+
     return retval
 
 
