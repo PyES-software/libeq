@@ -398,10 +398,10 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
 
     retval = bridge.final_result()
     retval.update(fit_result)
-    erB, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
+    stdev, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
     retval['covariance'] = cov
     retval['correlation'] = cor
-    retval['error log beta'] = erB
+    retval['error log beta'] = stdev[bridge._slice_betas] if bridge._any_beta_refined else None
     return retval
 
 
@@ -441,12 +441,12 @@ def fit_final_calcs(jacobian, resids, weights):
     """
     covariance = covariance_fun(jacobian, weights, resids)
     cov_diag = np.diag(covariance)
-    error_B = np.sqrt(cov_diag) / np.log(10)
+    stdev = np.sqrt(cov_diag)
     lenD = len(cov_diag)
     correlation = covariance / np.sqrt(
         np.dot(cov_diag.reshape((lenD, 1)), cov_diag.reshape((1, lenD)))
     )
-    return error_B, correlation, covariance
+    return stdev, correlation, covariance
 
 
 def ravel(x, y, flags):
