@@ -150,7 +150,7 @@ class PotentiometryBridge:
         variables = self._variables.copy()
         variables[self._slice_betas] /= LN10
 
-        istd = next(self.stdev)
+        istd = iter(self.stdev.tolist())
 
         err_log_beta = [next(istd)/LN10 if f == Flags.REFINE else None
                         for f in self._data.potentiometry_opts.beta_flags]
