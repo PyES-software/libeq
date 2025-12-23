@@ -725,7 +725,7 @@ class SolverData(BaseModel):
                             for v in potentiometry_data["beta_refine_flags"]],
                 conc_flags=[[Flags.REFINE if v else Flags.CONSTANT
                              for v in g]
-                            for g in potentiometry_data["conc_refine_flags"]],
+                            for g in zip(*potentiometry_data["conc_refine_flags"])],
                 pot_flags=[],
             )
             # data["potentiometry_opts"].conc_flags = [
