@@ -1,6 +1,5 @@
 "Test collection for potentiometry data fitting."
 
-import itertools
 from typing import Protocol, TypeAlias, Any
 
 import numpy as np
@@ -49,7 +48,6 @@ class Bridge(Protocol):
 
 
 class PotentiometryBridge:
-    bridge.incorporate_stdev(stdev)
     def __init__(self, data: SolverData, reporter) -> None:
         self._data = data
         self._reporter = reporter
@@ -154,13 +152,13 @@ class PotentiometryBridge:
 
         istd = next(self.stdev)
 
-        err_log_beta = [next(istd)/consts.LN10 if f == Flags.REFINE else None
+        err_log_beta = [next(istd)/LN10 if f == Flags.REFINE else None
                         for f in self._data.potentiometry_opts.beta_flags]
 
         err_titr_parms = [
             [
                 [next(istd) if c0f == Flags.REFINE else None for c0f in t.c0_flags],
-                [next(istd) if ctf == Flags.REFINE else None for c0f in t.c0_flags]
+                [next(istd) if ctf == Flags.REFINE else None for ctf in t.c0_flags]
             ] for t in self._titrations() ]
 
         # fvals = self.final_values()
