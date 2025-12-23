@@ -687,10 +687,15 @@ class SolverData(BaseModel):
             elif potentiometry_data["weightsMode"] == 2:
                 weights = "given"
             #breakpoint()
+            c0flags=([Flags.REFINE if v else Flags.CONSTANT
+                     for v in g]
+                     for g in zip(*potentiometry_data["conc_refine_flags"]))
+
             for t in potentiometry_data["titrations"]:
                 titrations.append(
                     PotentiometryTitrationsParameters(
                         c0=np.array(list(t.get("concView", {}).get("C0", {}).values()), dtype=float),
+                        c0_flags=next(c0flags),
                         ct=np.array(list(t.get("concView", {}).get("CT", {}).values()), dtype=float),
                         c0_sigma=np.array(
                             list(t.get("concView", {}).get("Sigma C0", {}).values()), dtype=float
@@ -723,9 +728,7 @@ class SolverData(BaseModel):
                 weights=weights,
                 beta_flags=[Flags.REFINE if v else Flags.CONSTANT
                             for v in potentiometry_data["beta_refine_flags"]],
-                conc_flags=[[Flags.REFINE if v else Flags.CONSTANT
-                             for v in g]
-                            for g in zip(*potentiometry_data["conc_refine_flags"])],
+                conc_flags=[],
                 pot_flags=[],
             )
             # data["potentiometry_opts"].conc_flags = [
