@@ -150,6 +150,7 @@ class PotentiometryBridge:
         variables = self._variables.copy()
         variables[self._slice_betas] /= LN10
 
+        assert len(self.stdev) == self._dof
         istd = iter(self.stdev.tolist())
 
         err_log_beta = [next(istd)/LN10 if f == Flags.REFINE else None
@@ -158,7 +159,7 @@ class PotentiometryBridge:
         err_titr_parms = [
             [
                 [next(istd) if c0f == Flags.REFINE else None for c0f in t.c0_flags],
-                [next(istd) if ctf == Flags.REFINE else None for ctf in t.c0_flags]
+                [next(istd) if ctf == Flags.REFINE else None for ctf in t.ct_flags]
             ] for t in self._titrations() ]
 
         # fvals = self.final_values()
