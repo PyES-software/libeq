@@ -462,10 +462,10 @@ class SolverData(BaseModel):
             [
                 [d[key] for key in d if key.startswith("IX")]
                 for d in parsed_data["species"]
-            ]
+            ], dtype=int
         ).T
         data["solid_stoichiometry"] = np.empty(
-            (data["stoichiometry"].shape[0], 0), dtype=np.int8
+            (data["stoichiometry"].shape[0], 0), dtype=int
         )
         data["log_beta"] = np.array([d["BLOG"] for d in parsed_data["species"]])
 
