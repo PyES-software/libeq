@@ -190,11 +190,6 @@ class PotentiometryBridge:
         }
         return retval
 
-
-    # def final_values(self):
-    #     yield self._beta()
-    #     yield from self._titration_parameters()
-
     def incorporate_stdev(self, stdev):
         assert len(stdev) == len(self._variables)
         self.stdev = stdev
