@@ -17,21 +17,30 @@ from . import libfit
 FArray: TypeAlias = NDArray[float]
 
 
-def refine_indices(flags: list[Flags]):
+def refine_indices(flags: list[Flags]) -> list[bool]:
+    """
+    Return list of bools for whether a particular parameter is to be refined.
+    """
     return [i == Flags.REFINE for i in flags]
 
 
 class Bridge(Protocol):
+    """
+    Class to deal with the Levenberg-Marquardt fitting routine.
+    """
     def __init__(self, data: SolverData):
         ...
 
-    def accept_values(self) -> None:
+    def accept_step(self) -> None:
         ...
 
     def final_result(self) -> dict:
         ...
 
     def matrices(self) -> tuple[FArray, FArray]:
+        ...
+
+    def reject_step(self) -> None:
         ...
 
     def size(self) -> tuple[int, int]:
