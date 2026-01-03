@@ -4,13 +4,11 @@ Author: Salvador Blasco <salvador.blasco@uv.es>
 """
 
 import enum
-import math
-from typing import Dict, Final
+from typing import Final
 
 import numpy as np
 from numpy.typing import NDArray
 
-from libeq import consts
 from libeq import excepts
 from .libmath import fit_sigma
 
@@ -95,7 +93,6 @@ def levenberg_marquardt(bridge, **kwargs) -> tuple[Exec, dict]:
     W: FArray = bridge.weights()
     gradient: FArray = 2*J.T @ W @ resid
     gradient_norm: float = float(np.linalg.norm(gradient))
-    INITIAL_GRADIENT_NORM: Final[float] = gradient_norm
     M: FArray = J.T @ W @ J
     D: FArray = np.diag(np.diag(M))
     chisq = float(resid.T @ W @ resid)
