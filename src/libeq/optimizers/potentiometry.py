@@ -12,6 +12,7 @@ from .. import excepts
 from . import jacobian
 from . import libemf
 from . import libfit
+from . import libmath
 
 
 FArray: TypeAlias = NDArray[float]
@@ -155,21 +156,26 @@ class PotentiometryBridge:
         """
         self._step[...] = 0.0
 
-    def final_result(self) -> dict:
+    def final_result(self, stdev=None) -> dict[str, Any]:
         variables = self._variables.copy()
         variables[self._slice_betas] /= LN10
 
-        assert len(self.stdev) == self._dof
-        istd = iter(self.stdev.tolist())
+        if stdev is not None:
+            assert len(stdev) == len(self._variables)
+            assert len(stdev) == self._dof
+            istd = iter(stdev.tolist())
 
-        err_log_beta = [next(istd)/LN10 if f == Flags.REFINE else None
-                        for f in self._data.potentiometry_opts.beta_flags]
+            err_log_beta = [next(istd)/LN10 if f == Flags.REFINE else None
+                            for f in self._data.potentiometry_opts.beta_flags]
 
-        err_titr_parms = [
-            [
-                [next(istd) if c0f == Flags.REFINE else None for c0f in t.c0_flags],
-                [next(istd) if ctf == Flags.REFINE else None for ctf in t.ct_flags]
-            ] for t in self._titrations() ]
+            err_titr_parms = [
+                [
+                    [next(istd) if c0f == Flags.REFINE else None for c0f in t.c0_flags],
+                    [next(istd) if ctf == Flags.REFINE else None for ctf in t.ct_flags]
+                ] for t in self._titrations() ]
+        else:
+            err_log_beta = None
+            err_titr_parms = None
 
         # fvals = self.final_values()
         eactive = libemf.hselect(self._freeconcentration, self._hindices) 
@@ -186,13 +192,11 @@ class PotentiometryBridge:
             'read emf': self._experimental_emf,
             'eactive': eactive,
             'background ion concentration': self._background_concentration(),
-            'weights': self._weights
+            'weights': self._weights,
+            'degrees of freedom': self._dof,
+            'number of experimental points': self._experimental_points
         }
         return retval
-
-    def incorporate_stdev(self, stdev):
-        assert len(stdev) == len(self._variables)
-        self.stdev = stdev
 
     def matrices(self) -> tuple[FArray, FArray]:
         """
@@ -418,13 +422,21 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     fit_status, fit_result = libfit.levenberg_marquardt(bridge, debug=False)
 
     stdev, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
-    bridge.incorporate_stdev(stdev)
 
-    retval = bridge.final_result()
+    retval = bridge.final_result(stdev)
     retval.update(fit_result)
     retval['covariance'] = cov
     retval['correlation'] = cor
 
+    retval['sigma split'] = [libmath.fit_sigma(fit_result['residuals'][s],
+                                               retval['weights'][s],
+                                               len(fit_result['residuals'][s]),
+                                               retval['degrees of freedom'])
+                             for s in retval['slices']]
+    retval['sigma'] = libmath.fit_sigma(fit_result['residuals'],
+                                        retval['weights'],
+                                        sum(retval['number of experimental points']),
+                                        retval['degrees of freedom'])
     return retval
 
 
