@@ -687,20 +687,10 @@ class SolverData(BaseModel):
                 weights = "calculated"
             elif potentiometry_data["weightsMode"] == 2:
                 weights = "given"
-<<<<<<< HEAD
 
-            breakpoint()
-            ncomps = len(data['components'])
-            c0flags=([Flags.REFINE if v else Flags.CONSTANT
-                     for v in g]
-                     if g else ncomps*[Flags.CONSTANT]
-                     for g in potentiometry_data["conc_refine_flags"])
-=======
-            #breakpoint()
             c0flags=([Flags.REFINE if v else Flags.CONSTANT
                      for v in g]
                      for g in zip(*potentiometry_data["conc_refine_flags"]))
->>>>>>> parent of 5155466 ([fix] for when c0flags is empty)
 
             for t in potentiometry_data["titrations"]:
                 titrations.append(
