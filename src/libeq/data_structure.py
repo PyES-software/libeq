@@ -1,6 +1,7 @@
 import json
 from functools import cached_property
 from typing import Any, Dict, List, Literal
+import itertools.repeat
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, computed_field
@@ -692,7 +693,8 @@ class SolverData(BaseModel):
                          for v in g]
                          for g in zip(*potentiometry_data["conc_refine_flags"]))
             else:
-                c0flags = iter([None])
+                ncomponents = len(data['components'])
+                c0flags = itertools.repeat(ncomponents*[Flags.CONSTANT])
 
             for t in potentiometry_data["titrations"]:
                 titrations.append(
