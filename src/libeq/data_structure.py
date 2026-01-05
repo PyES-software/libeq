@@ -686,10 +686,13 @@ class SolverData(BaseModel):
                 weights = "calculated"
             elif potentiometry_data["weightsMode"] == 2:
                 weights = "given"
-            #breakpoint()
-            c0flags=([Flags.REFINE if v else Flags.CONSTANT
-                     for v in g]
-                     for g in zip(*potentiometry_data["conc_refine_flags"]))
+
+            if potentiometry_data["conc_refine_flags"]:
+                c0flags=([Flags.REFINE if v else Flags.CONSTANT
+                         for v in g]
+                         for g in zip(*potentiometry_data["conc_refine_flags"]))
+            else:
+                c0flags = iter([None])
 
             for t in potentiometry_data["titrations"]:
                 titrations.append(
