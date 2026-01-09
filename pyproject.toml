@@ -19,6 +19,8 @@ where = ["src"]
 
 [tool.mypy]
 mypy_path = "src"
+ignore_missing_imports = true
+check_untyped_defs = true
 
 [project.optional-dependencies]
 dev = [
