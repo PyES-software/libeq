@@ -156,21 +156,20 @@ class SolverData(BaseModel):
         fields_to_check = [
             {
                 "field": "Initial pX",
-                "condition": (self.distribution_opts.initial_log is not None)
-                and (self.distribution_opts.initial_log > 0),
+                "condition": (self.distribution_opts.initial_log is not None),
                 "error_message": "Initial log must be provided",
             },
             {
                 "field": "Final pX",
                 "condition": (self.distribution_opts.final_log is not None)
-                and (self.distribution_opts.final_log > 0),
-                "error_message": "Final log must be provided",
+                and (self.distribution_opts.final_log > self.distribution_opts.initial_log),
+                "error_message": "Final log must be provided and it must be bigger that the initial value",
             },
             {
                 "field": "pX increments",
                 "condition": (self.distribution_opts.log_increments is not None)
                 and (self.distribution_opts.log_increments > 0),
-                "error_message": "Log increments must be provided",
+                "error_message": "Log increments must be provided and must be positive",
             },
             {
                 "field": "Independent component",
