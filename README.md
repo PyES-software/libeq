@@ -18,6 +18,26 @@ pip install libeq
 
 For more detailed information about `libeq` and its usage, please refer to the project documentation.
 
+## Available tools in the API
+
+### Data handling
+
+The module provided **SolverData** which is a pydantic dataclass where all the data is
+loaded. It can import and export data to and from other formats. This is the data interface
+for all the other tools.
+
+### Equilibrium solving tools
+
+* EqSolver: solves equilibria in solution and returns the equilibrium concentrations of
+ all the species involved.
+
+* PotentiometryOptimizer: optimizes equilibrium constants and other parameters based on
+ potentiometry data.
+
+### Utilities
+
+* species_concentration: completes the rest of the species array
+
 ## Acknowledgements
 
 This library is based on the work of many research groups on the topic, in particular the works of Prof. Sammartano's research group from the University of Messina and the Prof. Carrayrou from the University of Strasbourg.
