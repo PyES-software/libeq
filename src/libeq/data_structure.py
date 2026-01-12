@@ -588,7 +588,7 @@ class SolverData(BaseModel):
         data = dict()
         data["components"] = list(pyes_data["compModel"]["Name"].values())
 
-        data["stoichiometry"] = np.row_stack(
+        data["stoichiometry"] = np.vstack(
             [
                 list(pyes_data["speciesModel"][col].values())
                 for col in data["components"]
