@@ -21,3 +21,7 @@ def test_import_superquad():
     assert popts.beta_flags == [Flags.REFINE, Flags.REFINE, Flags.REFINE,
                                 Flags.REFINE,Flags.CONSTANT]
     assert popts.weights == 'calculated'
+
+
+def test_import_bstac():
+    data = SolverData.load_from_bstac("tests/data/namototc.mis")

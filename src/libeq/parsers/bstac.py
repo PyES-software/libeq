@@ -107,7 +107,7 @@ def parse_model(lines, icd, nc) -> list[dict[str, Any]]:
     ]
 
     if icd == 0:
-        process_func = sections[1]
+        process_func = sections[0]
         model_columns = (
             [
                 "BLOG",
@@ -120,7 +120,7 @@ def parse_model(lines, icd, nc) -> list[dict[str, Any]]:
             + [f"IKA{i}" for i in range(1, 10)]
         )
     else:
-        process_func = sections[0]
+        process_func = sections[1]
         model_columns = (
             [
                 "BLOG",
@@ -178,7 +178,7 @@ def parse_BSTAC_file(lines):
             ["IREF", "AT", "BT", "c0", "c1", "d0", "d1", "e0", "e1", "KCD"],
         ),  # IREF,AT,BT,c0,c1,d0,d1,e0,e1,KCD(1...6)
         (
-            lambda line: [float(part) for part in line.split()],
+            lambda line: [int(part) for part in line.split()],
             1,
             "charges",
         ),  # Z(1...NC)
