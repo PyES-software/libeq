@@ -1,5 +1,5 @@
-import numpy as np
 import json
+import numpy as np
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -42,12 +42,7 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def species_concentration(
-    concentration,
-    log_beta,
-    stoichiometry,
-    full=False,
-):
+def species_concentration(concentration, log_beta, stoichiometry, full=False):
     r"""
     Calculate the species concentrations through the mass action law.
 
@@ -89,3 +84,34 @@ def species_concentration(
     return p
 
 
+def percent_distribution(concentration, stoichiometry, analytc, reference):
+    """Transform free concentrations to relative concentrations.
+
+    This function converts absolute concentrations to relative percent of
+    concentrations with respect to a given species.
+
+    Parameters
+    ----------
+    concentration: numpy.ndarray
+        The extended free concentrations array.
+    stoichiometry: numpy.ndarray
+        Stoichimetric coefficients
+    analytc: numpy.ndarray
+        The total concentration array
+    reference: int
+        the index of the reference species
+
+    Returns
+    -------
+    numpy.ndarray: The concentrations expressed as percent with
+        respect to the reference species. The first dimmension is
+        unchanged with respect to that of **C** but the second one is
+        shorter as all components whose stoichiometric coefficient with
+        respect to the reference one is zero have been removed.
+    """
+    stoich_ref = stoichiometry[:, reference].copy()
+    stoich_ref[stoich_ref == 0] = np.inf
+
+    analytc_ref = analytc[:, reference]
+    new_c = concentration / analytc_ref[None, :]
+    return 100*new_c*stoich_ref
