@@ -160,7 +160,7 @@ def newton_raphson(
         J = jacobian(_c, stoichiometry, solid_stoichiometry)
 
         if np.any(np.isnan(J)):
-            _panic_save()
+            # _panic_save()
             msg2 = f"could not calculate jacobian (iteration {iterations + 1})"
             raise FailedCalculateConcentrations(msg2, x)
         if np.any(np.isnan(F)):
