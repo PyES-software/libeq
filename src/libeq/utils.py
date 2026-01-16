@@ -1,5 +1,10 @@
 import json
+
 import numpy as np
+import numpy.typing as npt
+
+FArray = npt.NDArray[float]
+IArray = npt.NDArray[int]
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -115,3 +120,19 @@ def percent_distribution(concentration, stoichiometry, analytc, reference):
     analytc_ref = analytc[:, reference]
     new_c = concentration / analytc_ref[None, :]
     return 100*new_c*stoich_ref
+
+
+def objective_function(analyticalc: FArray,
+                       free_concentration: FArray,
+                       stoichiometryx: IArray,
+                       solid_concentration: FArray,
+                       solid_stoichiometry: IArray,
+                       log_Ks: FArray):
+    n_components = analyticalc.shape[1]
+    ffunc = free_concentration @ stoichiometryx \
+          + solid_concentration @ solid_stoichiometry \
+          - analyticalc
+    aux = np.log10(free_concentration[:,:n_components]) @ solid_stoichiometry.T - log_Ks
+    aux[aux<0.0] = 0.0
+    gfunc = 10**aux - 1
+    return np.concatenate((ffunc, gfunc), axis=1)
