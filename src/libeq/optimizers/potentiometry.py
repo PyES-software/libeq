@@ -383,6 +383,15 @@ class PotentiometryBridge:
                 self._freeconcentration = c
         return c
 
+    def __calculate_weights(self):
+        weight_type = self._data.potentiometry_opts.weights
+        if weight_type == "calculated":
+            calcw = [libemf.emf_weights(t.v_add, t.v0_sigma, t.emf, t.e0_sigma)
+                     for t in self._titrations()]
+            return np.concatenate(calcw)
+        elif weight_type == "constants":
+            return np.ones(self._experimental_points)
+
     def __calculate_residual(self, free_concentrations):
         assert free_concentrations.shape == (self._total_points, self._nspecies + self._ncomponents)
         eactive = libemf.hselect(free_concentrations, self._hindices) 
