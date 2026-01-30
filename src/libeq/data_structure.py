@@ -107,7 +107,7 @@ class PotentiometryTitrationsParameters(TitrationParameters):
         if self.ignored is None:
             return len(v_add)*[True]
         else:
-            return ~ignored
+            return ~self.ignored
 
 class PotentiometryOptions(BaseModel):
     titrations: List[PotentiometryTitrationsParameters] = []
