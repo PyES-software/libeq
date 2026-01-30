@@ -92,12 +92,12 @@ class PotentiometryTitrationsParameters(TitrationParameters):
 
     @computed_field
     @cached_property
-    def get_titre(self):
+    def get_titre(self) -> Np1DArrayFp64:
         return self.__get_prop(self.v_add)
 
     @computed_field
     @cached_property
-    def get_emf(self):
+    def get_emf(self) -> Np1DArrayFp64:
         return self.__get_prop(self.emf)
 
     def __get_prop(self, prop):
