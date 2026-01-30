@@ -90,6 +90,24 @@ class PotentiometryTitrationsParameters(TitrationParameters):
     px_range: List[list[float]] = [[0, 0]]             # dimmensionless
     ignored: Np1DArrayBool | None = False
 
+    @computed_field
+    @cached_property
+    def get_titre(self):
+        return self.__get_prop(self.v_add)
+
+    @computed_field
+    @cached_property
+    def get_emf(self):
+        return self.__get_prop(self.emf)
+
+    def __get_prop(self, prop):
+        return np.extract(self.__used_points(), prop)
+
+    def __used_points(self) -> list[bool]:
+        if self.ignored is None:
+            return len(v_add)*[True]
+        else:
+            return ~ignored
 
 class PotentiometryOptions(BaseModel):
     titrations: List[PotentiometryTitrationsParameters] = []
