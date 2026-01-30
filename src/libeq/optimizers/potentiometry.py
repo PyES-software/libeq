@@ -101,6 +101,8 @@ class PotentiometryBridge:
         self._bmatrixb = np.concatenate([jacobian.bmatrix_b(t.get_titre, t.v0, self._ncomponents)
                                          for t in self._titrations()])
 
+        # self._weights = np.concatenate([libemf.emf_weights(t.v_add, t.v0_sigma, t.emf, t.e0_sigma)
+        #     for t in data.potentiometry_opts.titrations])
         self._weights = self.__calculate_weights()
 
         if np.any(np.isnan(self._weights)):
