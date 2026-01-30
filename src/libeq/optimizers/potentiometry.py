@@ -1,6 +1,7 @@
 "Test collection for potentiometry data fitting."
 
 from typing import Protocol, TypeAlias, Any
+from warnings import deprecated
 
 import numpy as np
 from numpy.typing import NDArray
@@ -241,6 +242,7 @@ class PotentiometryBridge:
     def relative_change(self, step):
         return step/self._variables
 
+    @deprecated("This method will be removed in the future")
     def report_raw(self, text):
         print(text)
 
