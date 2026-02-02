@@ -20,6 +20,8 @@ class Test_ZnEDTA:
     def setup_method(self):
         from .data import data_znedta
         self.data = data_znedta.load_data()
+        # ensure weighting mode; only passes for calculated weights
+        self.data.potentiometry_opts.weights = "calculated"
         self.true_beta = np.array([ 16.25, 19.25, 4.65])
 
     def copy_data(self):

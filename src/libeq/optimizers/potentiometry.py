@@ -101,10 +101,7 @@ class PotentiometryBridge:
         self._bmatrixb = np.concatenate([jacobian.bmatrix_b(t.v_add, t.v0, self._ncomponents)
                                          for t in self._titrations()])
 
-        self._weights = np.concatenate([libemf.emf_weights(t.v_add, t.v0_sigma, t.emf, t.e0_sigma)
-            for t in data.potentiometry_opts.titrations])
-        if np.any(np.isnan(self._weights)):
-            raise ValueError("Some calculated weight values are NaN")
+        self._weights = self.__create_weights()
 
         # initial variable vector
         self._idx_refinable = []
@@ -390,6 +387,22 @@ class PotentiometryBridge:
         assert calculated_emf.shape == (self._total_points,)
         residual = self._experimental_emf - calculated_emf
         return residual
+
+    def __create_weights(self):
+        weights_mode = self._data.potentiometry_opts.weights
+        print(weights_mode)
+        if weights_mode == 'calculated':
+            retv = np.concatenate([libemf.emf_weights(t.v_add, t.v0_sigma, t.emf, t.e0_sigma)
+                                   for t in self._titrations()])
+        elif weights_mode == 'constants':
+            retv = np.ones_like(self._experimental_emf, dtype=float)
+        else:
+            raise NotImplementedError(f"weight mode '{weights_mode}' not implemented")
+
+        if np.any(np.isnan(retv)):
+            raise ValueError("Some calculated weight values are NaN")
+
+        return retv
 
 
 def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
