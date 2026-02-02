@@ -1,9 +1,9 @@
 import json
 from functools import cached_property, cache
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Optional
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 from pydantic_numpy.typing import (
     Np1DArrayFp64,
     Np2DArrayFp64,
@@ -78,24 +78,32 @@ class SimulationTitrationParameters(TitrationParameters):
 
 
 class PotentiometryTitrationsParameters(TitrationParameters):
-    electro_active_compoment: int | None = None        # index of the component
-    e0: float | None = None                            # in mV
-    e0_sigma: float | None = None                      # in mV
-    slope: float | None = None                         # in mV
-    v0: float | None = None                            # in mL
-    v0_sigma: float | None = None                      # in mL
-    v_add: Np1DArrayFp64 | None = None                 # in mL
-    emf: Np1DArrayFp64 | None = None                   # in mV
-    px_range: List[list[float]] = [[0, 0]]             # dimmensionless
-    ignored: Np1DArrayBool = np.full_like(v_add, False)
+    electro_active_compoment: int | None = None         # index of the component
+    e0: float | None = None                             # in mV
+    e0_sigma: float | None = None                       # in mV
+    slope: float | None = None                          # in mV
+    v0: float | None = None                             # in mL
+    v0_sigma: float | None = None                       # in mL
+    v_add: Np1DArrayFp64 | None = None                  # in mL
+    emf: Np1DArrayFp64 | None = None                    # in mV
+    px_range: List[list[float]] = [[0, 0]]              # dimmensionless
+    ignored: Optional[Np1DArrayBool] = None
 
-    @cache
+    @computed_field
+    @cached_property
     def get_titre(self) -> Np1DArrayFp64:
         return self.__get_property(self.v_add)
 
-    @cache
+    @computed_field
+    @cached_property
     def get_emf(self) -> Np1DArrayFp64:
         return self.__get_property(self.emf)
+
+    @model_validator(mode='after')
+    def set_ignored(self):
+        if self.ignored is None:
+            self.ignored = np.full_like(self.v_add, False, dtype=bool)
+        return self
 
     def __get_property(self, prop: Np1DArrayFp64) -> Np1DArrayFp64:
         used = np.logical_not(self.ignored)
