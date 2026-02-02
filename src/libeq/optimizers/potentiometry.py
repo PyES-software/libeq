@@ -67,7 +67,7 @@ class PotentiometryBridge:
         self._stoichx = self._stoichiometry(extended=True)
         self._nspecies, self._ncomponents = self._stoich.shape
         self._ntitrations = len(data.potentiometry_opts.titrations)
-        self._experimental_points = [ len(t.v_add) for t in self._titrations() ]
+        self._experimental_points = [ len(t.get_titre()) for t in self._titrations() ]
         self._total_points = sum(self._experimental_points)
         self._chargesx = np.sum(self._stoichx*data.charges, axis=1)
 
@@ -81,24 +81,24 @@ class PotentiometryBridge:
         for ntit, titration in enumerate(self._titrations()):
             self._dof_conc += sum(1 for _ in titration.c0_flags if _ == Flags.REFINE)
             self._dof_conc += sum(1 for _ in titration.ct_flags if _ == Flags.REFINE)
-            self._slices.append(slice(counter, counter+len(titration.emf)))
+            self._slices.append(slice(counter, counter+len(titration.get_emf())))
             self._slopes[self._slices[-1]] = titration.slope / LN10
             self._emf0[self._slices[-1]] = titration.e0
-            counter += len(titration.emf)
+            counter += len(titration.get_emf())
         self._dof = self._dof_beta + self._dof_conc
 
         ##> self._hindices
         self._hindices = []
         for titration in data.potentiometry_opts.titrations:
-            self._hindices.extend(len(titration.v_add) * [titration.electro_active_compoment])
+            self._hindices.extend(len(titration.get_titre()) * [titration.electro_active_compoment])
 
         ##> self._experimental_remf
-        self._experimental_emf = np.concatenate([t.emf for t in data.potentiometry_opts.titrations])
+        self._experimental_emf = np.concatenate([t.get_emf() for t in data.potentiometry_opts.titrations])
 
-        self._bmatrixt = np.concatenate([jacobian.bmatrix_t(t.v_add, t.v0, self._ncomponents)
+        self._bmatrixt = np.concatenate([jacobian.bmatrix_t(t.get_titre(), t.v0, self._ncomponents)
                                          for t in self._titrations()])
 
-        self._bmatrixb = np.concatenate([jacobian.bmatrix_b(t.v_add, t.v0, self._ncomponents)
+        self._bmatrixb = np.concatenate([jacobian.bmatrix_b(t.get_titre(), t.v0, self._ncomponents)
                                          for t in self._titrations()])
 
         self._weights = self.__create_weights()
@@ -290,15 +290,15 @@ class PotentiometryBridge:
     def _analytical_concentration(self) -> FArray:
         aconc = []
         for titration, (c0, ct) in zip(self._titrations(), self._titration_parameters()):
-            aux = (c0[None, :] * titration.v0 + ct[None, :] * titration.v_add[:, None]) / \
-                (titration.v0 + titration.v_add[:, None])
+            aux = (c0[None, :] * titration.v0 + ct[None, :] * titration.get_titre()[:, None]) / \
+                (titration.v0 + titration.get_titre()[:, None])
             aconc.append(aux)
         return np.concatenate(aconc, axis=0)
 
     def _background_concentration(self) -> FArray:
         bconc = [
-            (titration.c0back * titration.v0 + titration.ctback * titration.v_add[:, None]) / \
-                (titration.v0 + titration.v_add[:, None])
+            (titration.c0back * titration.v0 + titration.ctback * titration.get_titre()[:, None]) / \
+                (titration.v0 + titration.get_titre()[:, None])
             for titration in self._titrations()
         ]
         return np.concatenate(bconc, axis=0)
@@ -391,7 +391,7 @@ class PotentiometryBridge:
     def __create_weights(self):
         weights_mode = self._data.potentiometry_opts.weights
         if weights_mode == 'calculated':
-            retv = np.concatenate([libemf.emf_weights(t.v_add, t.v0_sigma, t.emf, t.e0_sigma)
+            retv = np.concatenate([libemf.emf_weights(t.get_titre(), t.v0_sigma, t.get_emf(), t.e0_sigma)
                                    for t in self._titrations()])
         elif weights_mode == 'constants':
             retv = np.ones_like(self._experimental_emf, dtype=float)

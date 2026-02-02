@@ -87,17 +87,17 @@ class PotentiometryTitrationsParameters(TitrationParameters):
     v_add: Np1DArrayFp64 | None = None                 # in mL
     emf: Np1DArrayFp64 | None = None                   # in mV
     px_range: List[list[float]] = [[0, 0]]             # dimmensionless
-    ignored: Np1DArrayBool | None = None
+    ignored: Np1DArrayBool = np.full_like(v_add, False)
 
     @cache
-    def get_titre(self) -> FArray:
+    def get_titre(self) -> Np1DArrayFp64:
         return self.__get_property(self.v_add)
 
     @cache
-    def get_emf(self) -> FArray:
+    def get_emf(self) -> Np1DArrayFp64:
         return self.__get_property(self.emf)
 
-    def __get_property(self, prop: FArray) -> FArray:
+    def __get_property(self, prop: Np1DArrayFp64) -> Np1DArrayFp64:
         used = np.logical_not(self.ignored)
         return np.extract(used, prop)
 
