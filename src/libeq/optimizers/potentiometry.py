@@ -390,7 +390,6 @@ class PotentiometryBridge:
 
     def __create_weights(self):
         weights_mode = self._data.potentiometry_opts.weights
-        print(weights_mode)
         if weights_mode == 'calculated':
             retv = np.concatenate([libemf.emf_weights(t.v_add, t.v0_sigma, t.emf, t.e0_sigma)
                                    for t in self._titrations()])
