@@ -1,7 +1,6 @@
 import json
-from functools import cached_property
+from functools import cached_property, cache
 from typing import Any, Dict, List, Literal
-import itertools
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, computed_field
@@ -88,7 +87,19 @@ class PotentiometryTitrationsParameters(TitrationParameters):
     v_add: Np1DArrayFp64 | None = None                 # in mL
     emf: Np1DArrayFp64 | None = None                   # in mV
     px_range: List[list[float]] = [[0, 0]]             # dimmensionless
-    ignored: Np1DArrayBool | None = False
+    ignored: Np1DArrayBool | None = None
+
+    @cache
+    def get_titre(self) -> FArray:
+        return self.__get_property(self.v_add)
+
+    @cache
+    def get_emf(self) -> FArray:
+        return self.__get_property(self.emf)
+
+    def __get_property(self, prop: FArray) -> FArray:
+        used = np.logical_not(self.ignored)
+        return np.extract(used, prop)
 
 
 class PotentiometryOptions(BaseModel):
@@ -570,7 +581,7 @@ class SolverData(BaseModel):
             )
             for t in parsed_data["titrations"]
         ]
-        
+
         data["potentiometry_opts"] = PotentiometryOptions(
             titrations=titration_options,
             weights="calculated",
