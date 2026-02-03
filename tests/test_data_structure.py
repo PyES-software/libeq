@@ -1,9 +1,18 @@
+import numpy as np
 import pytest
 
-def test_dummy():
-    assert 1 == 1
+from libeq.data_structrure import PotentiometryTitrationsParameters
 
 
-# Run the tests
-if __name__ == "__main__":
-    pytest.main()
+def test_pxrange():
+    ptp = PotentiometryTitrationsParameters(
+        electro_active_compoment=0,
+        e0=400.0,
+        e0_sigma=0.1,
+        slope=59.0,
+        v0=25.0,
+        v0_sigma=0.1,
+        v_add=np.linspace(0.0, 1.0, 100),
+        emf=np.linspace(341.0, -308, 56),
+        px_range=[[2.0, 3.0], [7.0, 9.0]]
+    )

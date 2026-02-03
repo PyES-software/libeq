@@ -99,6 +99,11 @@ class PotentiometryTitrationsParameters(TitrationParameters):
     def get_emf(self) -> Np1DArrayFp64:
         return self.__get_property(self.emf)
 
+    @computed_field
+    @cached_property
+    def pX(self) -> Np1DArrayFp64:
+        return (self.e0 - self.get_emf) / self.slope
+
     @model_validator(mode='after')
     def set_ignored(self):
         if self.ignored is None:
