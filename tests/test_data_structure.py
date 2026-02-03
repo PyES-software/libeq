@@ -16,3 +16,5 @@ def test_pxrange():
         emf=np.linspace(341.0, -308, 56),
         px_range=[[2.0, 3.0], [7.0, 9.0]]
     )
+    for upx in ptp.pX:
+        assert 2.0 <= upx <= 3.0 or 7.0 <= upx <= 9.0
