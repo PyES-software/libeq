@@ -86,7 +86,7 @@ class PotentiometryTitrationsParameters(TitrationParameters):
     v0_sigma: float | None = None                       # in mL
     v_add: Np1DArrayFp64 | None = None                  # in mL
     emf: Np1DArrayFp64 | None = None                    # in mV
-    px_range: List[list[float]] = [[0, 0]]              # dimmensionless
+    px_range: List[list[float]] | None = None           # dimmensionless
     ignored: Optional[Np1DArrayBool] = None
 
     @computed_field
