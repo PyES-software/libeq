@@ -111,8 +111,9 @@ class PotentiometryTitrationsParameters(TitrationParameters):
         return self
 
     def __get_property(self, prop: Np1DArrayFp64) -> Np1DArrayFp64:
-        used = np.logical_not(self.ignored)
+        userused = np.logical_not(self.ignored)
         pxused = self.__getpxused()
+        used = np.logical_and(userused, pxused)
         return np.extract(used, prop)
 
     def __getpxused(self):
@@ -121,7 +122,7 @@ class PotentiometryTitrationsParameters(TitrationParameters):
 
         fullpx = (self.e0 - self.emf) / self.slope
         f = [np.logical_and(fullpx>pxmin, fullpx<pxmax) for pxmin, pxmax in self.px_range]
-        return np.logical_or.reduce(*f)
+        return np.logical_or.reduce(f)
 
 
 class PotentiometryOptions(BaseModel):
