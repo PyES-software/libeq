@@ -449,6 +449,10 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
                                         retval['weights'],
                                         sum(retval['number of experimental points']),
                                         retval['degrees of freedom'])
+
+    # for compatibility in plotting
+    retval['species_concentrations'] = retval['free concentration']
+
     return retval
 
 
