@@ -18,7 +18,6 @@ def test_solid_aluminium():
     number_components = 2
     stoichx = np.vstack((np.eye(number_components, dtype=int), data.stoichiometry.T))
     freecx = species_concentration(c_soluble, data.log_beta, data.stoichiometry, full=True)
-
     npt.assert_allclose(freecx, real_csol, atol=FOBJ_TOLERANCE)   
     npt.assert_allclose(c_solids, real_csolid, atol=FOBJ_TOLERANCE)   
     # npt.assert_allclose(real_sindex, saturation_index, atol=FOBJ_TOLERANCE)   
