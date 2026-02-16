@@ -191,7 +191,8 @@ class PotentiometryBridge:
             'background ion concentration': self._background_concentration(),
             'weights': self._weights,
             'degrees of freedom': self._dof,
-            'number of experimental points': self._experimental_points
+            'number of experimental points': self._experimental_points,
+            'variable names': list(self._name_variables())
         }
         return retval
 
@@ -379,6 +380,23 @@ class PotentiometryBridge:
             if update:
                 self._freeconcentration = c
         return c
+
+    def _name_variables(self):
+        if self._any_beta_refined:
+            species_names = self._data.species_names
+            beta_flags = self._data.potentiometry_opts.beta_flags
+            for name, flag in zip(species_names, beta_flags):
+                if flag == Flags.REFINE:
+                    yield f"logB[{name}]"
+        if self._any_conc_refined:
+            components = self._data.components
+            for ntit, titration in enumerate(self._titrations()):
+                for comp, flag in zip(components, titration.c0_flags):
+                    if flag == Flags.REFINE:
+                        yield f"c0[{comp}, tit#{ntit}]"
+                for comp, flag in zip(components, titration.ct_flags):
+                    if flag == Flags.REFINE:
+                        yield f"cT[{comp}, tit#{ntit}]"
 
     def __calculate_residual(self, free_concentrations):
         assert free_concentrations.shape == (self._total_points, self._nspecies + self._ncomponents)
