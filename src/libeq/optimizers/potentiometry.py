@@ -138,6 +138,8 @@ class PotentiometryBridge:
         self._step = np.zeros(self._dof, dtype=float)
         self._previous_values = np.empty_like(self._variables)
 
+        self._initial_titration_paras = list(self._titration_parameters())
+
         # Calculate free concetrations initially
         self._freeconcentration = self._calc_free_concs(initial=True, update=False)
 
@@ -181,6 +183,7 @@ class PotentiometryBridge:
             'final variables': variables,
             'final log beta': self._beta(),
             'error log beta': err_log_beta,
+            'initial titration parameters': self._initial_titration_paras,
             'final titration parameters': list(self._titration_parameters()),
             'error titration parameters': err_titr_parms,
             'free concentration': self._freeconcentration,
