@@ -141,9 +141,9 @@ def solve_equilibrium_equations(
     solid_stoichiometry : numpy.ndarray
         Integer array of shape ``(n_components, n_solids)`` for solid phases.
     original_log_beta : numpy.ndarray
-        log\ :sub:`10` stability constants for soluble species.
+        log10 stability constants for soluble species.
     original_log_ks : numpy.ndarray
-        log\ :sub:`10` solubility products for solid phases.
+        log10 solubility products for solid phases.
     total_concentration : numpy.ndarray
         Analytical (total) concentrations array of shape
         ``(n_points, n_components)``.
@@ -164,10 +164,10 @@ def solve_equilibrium_equations(
     result : numpy.ndarray
         Calculated equilibrium concentrations.  Shape depends on *full*.
     log_beta : numpy.ndarray
-        log\ :sub:`10` stability constants (possibly corrected for ionic
+        log10 stability constants (possibly corrected for ionic
         strength) used in the final iteration.
     log_ks : numpy.ndarray
-        log\ :sub:`10` solubility products used in the final iteration.
+        log10 solubility products used in the final iteration.
     saturation_index : numpy.ndarray
         Saturation indices for each solid phase, shape
         ``(n_points, n_solids)``.

@@ -217,7 +217,7 @@ def parse_BSTAC_file(lines):
     Parameters
     ----------
     lines : list of str
-        All lines of the BSTAC file as returned by :func:`open`.readlines`.
+        All lines of the BSTAC file as returned by ``open(path).readlines()``.
 
     Returns
     -------
