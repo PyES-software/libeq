@@ -16,10 +16,44 @@ def covariance(J, W):
 
 
 def fitting_errors(covar):
+    """Return the standard errors of the fitted parameters.
+
+    Extracts the square root of the diagonal elements of the covariance
+    matrix, which equals the standard deviation (1 σ) of each parameter.
+
+    Parameters
+    ----------
+    covar : numpy.ndarray
+        Covariance matrix of shape ``(p, p)``, as returned by
+        :func:`covariance`.
+
+    Returns
+    -------
+    numpy.ndarray
+        1-D array of length *p* with the standard errors.
+    """
     return np.sqrt(np.diag(covar))
 
 
 def correlation_matrix(covar):
+    """Compute the Pearson correlation matrix from a covariance matrix.
+
+    Normalises *covar* by the outer product of its diagonal elements:
+
+    .. math::
+
+        R_{ij} = \\frac{\\text{Cov}_{ij}}{\\sqrt{\\text{Cov}_{ii}\\,\\text{Cov}_{jj}}}
+
+    Parameters
+    ----------
+    covar : numpy.ndarray
+        Covariance matrix of shape ``(p, p)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Correlation matrix of shape ``(p, p)`` with values in ``[-1, 1]``.
+    """
     D = np.diag(covar)
     nD = len(D)
     return covar/np.sqrt(np.dot(D.reshape((nD, 1)), D.reshape((1, nD))))
@@ -130,10 +164,41 @@ def weighting_slope(x, y, error_x, error_y):
 
 
 def m_matrix(jacobian, weights):
+    """Compute the normal-equations matrix :math:`M = J^T W J`.
+
+    Parameters
+    ----------
+    jacobian : numpy.ndarray
+        Jacobian matrix of shape ``(n, p)``.
+    weights : numpy.ndarray
+        Square weights matrix of shape ``(n, n)`` (typically diagonal).
+
+    Returns
+    -------
+    numpy.ndarray
+        Normal-equations matrix of shape ``(p, p)``.
+    """
     return np.dot(np.dot(jacobian.T, weights), jacobian)
 
 
 def error_params(jacobian, weights):
+    """Compute the variance of each parameter from the Jacobian and weights.
+
+    Calculates ``diag(inv(J^T W J))`` which represents the variances of the
+    fitted parameters under the weighted least-squares model.
+
+    Parameters
+    ----------
+    jacobian : numpy.ndarray
+        Jacobian matrix of shape ``(n, p)``.
+    weights : numpy.ndarray
+        Square weights matrix of shape ``(n, n)`` (typically diagonal).
+
+    Returns
+    -------
+    numpy.ndarray
+        1-D array of length *p* containing the variance of each parameter.
+    """
     M = m_matrix(jacobian, weights)
     return np.diag(np.linalg.inv(M))
 

@@ -26,38 +26,115 @@ def refine_indices(flags: list[Flags]) -> list[bool]:
 
 
 class Bridge(Protocol):
-    """
-    Class to deal with the Levenberg-Marquardt fitting routine.
+    """Protocol (interface) consumed by the Levenberg–Marquardt fitter.
+
+    Concrete bridge classes encapsulate the problem-specific data and
+    computations, exposing a uniform interface that
+    :func:`~libeq.optimizers.libfit.levenberg_marquardt` can call without
+    knowing the details of the underlying chemical model.
     """
     def __init__(self, data: SolverData):
+        """Initialise the bridge with the problem data.
+
+        Parameters
+        ----------
+        data : SolverData
+            Container with all thermodynamic and experimental parameters.
+        """
         ...
 
     def accept_step(self) -> None:
+        """Commit the current trial step and reset the increment buffer to zero."""
         ...
 
     def final_result(self) -> dict:
+        """Compile and return the full refinement result as a dictionary.
+
+        Returns
+        -------
+        dict
+            Key–value pairs describing the converged parameter values,
+            concentrations, residuals, and diagnostic information.
+        """
         ...
 
     def matrices(self) -> tuple[FArray, FArray]:
+        """Compute and return the Jacobian and residual arrays for the accepted step.
+
+        Returns
+        -------
+        tuple of (numpy.ndarray, numpy.ndarray)
+            ``(J, r)`` where *J* is the Jacobian of shape
+            ``(n_points, n_params)`` and *r* is the residual vector of shape
+            ``(n_points,)``.
+        """
         ...
 
     def reject_step(self) -> None:
+        """Discard the current trial step and reset the increment buffer to zero."""
         ...
 
     def size(self) -> tuple[int, int]:
+        """Return the dimensions of the fitting problem.
+
+        Returns
+        -------
+        tuple of (int, int)
+            ``(n_points, n_params)`` — total number of experimental
+            observations and number of refinable parameters.
+        """
         ...
 
     def trial_step(self, increments: FArray) -> None:
+        """Store parameter increments for the next trial step.
+
+        Parameters
+        ----------
+        increments : numpy.ndarray
+            Proposed parameter increments, shape ``(n_params,)``.
+        """
         ...
 
     def tmp_residual(self) -> FArray:
+        """Compute and return the residual vector for the current trial step.
+
+        Returns
+        -------
+        numpy.ndarray
+            Residual vector of shape ``(n_points,)``.
+        """
         ...
 
     def weights(self) -> FArray:
+        """Return the weights matrix used in the objective function.
+
+        Returns
+        -------
+        numpy.ndarray
+            Square diagonal weights matrix of shape ``(n_points, n_points)``.
+        """
         ...
 
 
 class PotentiometryBridge:
+    """Bridge implementation for potentiometric data fitting.
+
+    Connects the generic Levenberg–Marquardt optimizer in
+    :mod:`libeq.optimizers.libfit` with the potentiometry-specific
+    equilibrium calculations.  Manages the current best-estimate parameter
+    vector (log betas and optionally concentrations), the pre-computed
+    Jacobian building blocks, and the per-point weights.
+
+    Parameters
+    ----------
+    data : SolverData
+        All thermodynamic and experimental data, including
+        :attr:`~libeq.data_structure.SolverData.potentiometry_opts`.
+    reporter : callable or None
+        Optional callback invoked at each iteration with keyword arguments
+        describing the current refinement state.  Pass ``None`` to suppress
+        reporting.
+    """
     def __init__(self, data: SolverData, reporter) -> None:
         self._data = data
         self._reporter = reporter
@@ -156,6 +233,30 @@ class PotentiometryBridge:
         self._step[...] = 0.0
 
     def final_result(self, stdev=None) -> dict[str, Any]:
+        """Compile the complete refinement results into a dictionary.
+
+        Parameters
+        ----------
+        stdev : numpy.ndarray or None, optional
+            Standard deviations of the refined parameters, shape
+            ``(n_params,)``.  When provided, errors are split across log-beta
+            and titration-parameter entries in the output dict.
+
+        Returns
+        -------
+        dict
+            Dictionary containing, among others:
+
+            - ``"final variables"`` – converged parameter values.
+            - ``"final log beta"`` – log10 stability constants after
+              refinement.
+            - ``"error log beta"`` – standard errors (or ``None`` per entry
+              when not refined).
+            - ``"free concentration"`` – free-concentration matrix at
+              convergence.
+            - ``"read emf"`` – experimental EMF values.
+            - ``"weights"`` – per-point weights used during fitting.
+        """
         variables = self._variables.copy()
         variables[self._slice_betas] /= LN10
 
@@ -240,9 +341,28 @@ class PotentiometryBridge:
         return trimmed_jac3, residual
 
     def relative_change(self, step):
+        """Return the relative change of each parameter for a given step.
+
+        Parameters
+        ----------
+        step : numpy.ndarray
+            Absolute parameter increments, shape ``(n_params,)``.
+
+        Returns
+        -------
+        numpy.ndarray
+            Element-wise ratio ``step / variables``.
+        """
         return step/self._variables
 
     def report_raw(self, text):
+        """Print a raw text message to standard output.
+
+        Parameters
+        ----------
+        text : str
+            The message to print.
+        """
         print(text)
 
     def report_step(self, **kwargs):
@@ -263,6 +383,19 @@ class PotentiometryBridge:
         return self._total_points, self._dof
 
     def trial_step(self, increments: FArray) -> None:
+        """Store parameter increments for the next trial evaluation.
+
+        Parameters
+        ----------
+        increments : numpy.ndarray
+            Proposed parameter increments, shape ``(n_params,)``.  Must match
+            the current step buffer shape.
+
+        Raises
+        ------
+        ValueError
+            If *increments* has a different shape from the internal step buffer.
+        """
         if increments.shape != self._step.shape:
             raise ValueError(f"Shape mismatch: {increments.shape} != {self._step.shape}")
         self._step[:] = increments[:]
@@ -275,6 +408,14 @@ class PotentiometryBridge:
         return self.__calculate_residual(freec)
 
     def weights(self) -> FArray:
+        """Return the diagonal weights matrix for the current fitting run.
+
+        Returns
+        -------
+        numpy.ndarray
+            Square diagonal matrix of shape ``(n_points, n_points)`` built
+            from the per-point weights vector.
+        """
         return np.diag(self._weights)
 
     @property

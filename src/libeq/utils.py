@@ -11,6 +11,29 @@ class NumpyEncoder(json.JSONEncoder):
     """Custom encoder for numpy data types"""
 
     def default(self, obj):
+        """Convert NumPy scalar and array types to JSON-serialisable Python types.
+
+        Parameters
+        ----------
+        obj : object
+            The object to serialise.  NumPy integer types are converted to
+            :class:`int`, float types to :class:`float`, complex types to a
+            ``{"real": ..., "imag": ...}`` dict, arrays to :class:`list`,
+            boolean scalars to :class:`bool`, and void scalars to ``None``.
+            All other types fall back to the default :class:`json.JSONEncoder`
+            behaviour.
+
+        Returns
+        -------
+        int or float or dict or list or bool or None
+            A JSON-serialisable Python object.
+
+        Raises
+        ------
+        TypeError
+            If *obj* is not a recognised NumPy type and the parent encoder
+            cannot handle it.
+        """
         if isinstance(
             obj,
             (
@@ -128,6 +151,39 @@ def objective_function(analyticalc: FArray,
                        solid_concentration: FArray,
                        solid_stoichiometry: IArray,
                        log_Ks: FArray):
+    """Compute the combined objective function for systems with solid phases.
+
+    Evaluates the residuals of both the mass-balance equations (*f*) and the
+    solubility-product constraints (*g*).  Supersaturation conditions
+    (``g < 0``) are clipped to zero so they do not contribute a negative
+    penalty.
+
+    Parameters
+    ----------
+    analyticalc : numpy.ndarray
+        Total analytical concentrations array of shape ``(n_points,
+        n_components)``.
+    free_concentration : numpy.ndarray
+        Free concentrations of all soluble species, shape
+        ``(n_points, n_components + n_species)``.
+    stoichiometryx : numpy.ndarray
+        Extended stoichiometry matrix (components + species) of shape
+        ``(n_components + n_species, n_components)``.
+    solid_concentration : numpy.ndarray
+        Concentrations of precipitated solid phases, shape
+        ``(n_points, n_solids)``.
+    solid_stoichiometry : numpy.ndarray
+        Stoichiometry matrix for solid phases of shape
+        ``(n_components, n_solids)``.
+    log_Ks : numpy.ndarray
+        log\ :sub:`10` of the solubility products, shape ``(n_solids,)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Concatenated residuals ``[f; g]`` of shape
+        ``(n_points, n_components + n_solids)``.
+    """
     n_components = analyticalc.shape[1]
     ffunc = free_concentration @ stoichiometryx \
           + solid_concentration @ solid_stoichiometry \
