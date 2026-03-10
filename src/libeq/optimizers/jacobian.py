@@ -49,6 +49,39 @@ def jacobian(concentration, stoichiometry, logc=False):
 
 
 def jacobian_solid(concentration, stoichiometry, solubility_stoich, solubility_product):
+    """Compute the full Jacobian for systems containing solid phases.
+
+    Assembles the block Jacobian matrix
+
+    .. math::
+
+        J = \\begin{pmatrix} J_f & J_{f,\\text{solid}} \\\\
+                             J_g & 0 \\end{pmatrix}
+
+    where :math:`J_f` is the standard soluble-species Jacobian,
+    :math:`J_{f,\\text{solid}}` is the contribution from the solid-phase
+    mass-balance terms, and :math:`J_g` comes from the solubility-product
+    constraints.
+
+    Parameters
+    ----------
+    concentration : numpy.ndarray
+        Free concentrations array of shape ``(n_points, n_components + n_species)``.
+    stoichiometry : numpy.ndarray
+        Stoichiometry matrix for soluble species, shape
+        ``(n_components, n_species)``.
+    solubility_stoich : numpy.ndarray
+        Stoichiometry matrix for solid phases, shape
+        ``(n_components, n_solids)``.
+    solubility_product : numpy.ndarray
+        Solubility products :math:`K_s`, shape ``(n_solids,)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Block Jacobian array of shape
+        ``(n_points, n_components + n_solids, n_components + n_solids)``.
+    """
     jf1 = jacobian(concentration, stoichiometry)
     jf2 = jacobian_f_solid(solubility_stoich)
     jg1 = jacobian_g_solid(concentration, solubility_stoich, solubility_product)
@@ -57,10 +90,49 @@ def jacobian_solid(concentration, stoichiometry, solubility_stoich, solubility_p
 
 
 def jacobian_f_solid(solubility_stoich):
+    """Return the upper-right block of the solid Jacobian (∂f/∂c_solid).
+
+    This block represents how the mass-balance residuals change with respect
+    to the solid-phase concentrations.  It equals the transpose of the
+    solubility stoichiometry matrix.
+
+    Parameters
+    ----------
+    solubility_stoich : numpy.ndarray
+        Stoichiometry matrix for solid phases, shape
+        ``(n_components, n_solids)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape ``(n_solids, n_components)`` equal to
+        ``solubility_stoich.T``.
+    """
     return solubility_stoich.T
 
 
 def jacobian_g_solid(concentration, solubility_stoich, solubility_product):
+    """Return the lower-left block of the solid Jacobian (∂g/∂c_free).
+
+    Computes the derivative of the solubility-product constraint function *g*
+    with respect to the free component concentrations.
+
+    Parameters
+    ----------
+    concentration : numpy.ndarray
+        Free concentrations array of shape ``(n_points, n_components)``.
+    solubility_stoich : numpy.ndarray
+        Stoichiometry matrix for solid phases, shape
+        ``(n_components, n_solids)``.
+    solubility_product : numpy.ndarray
+        Solubility products :math:`K_s`, shape ``(n_solids,)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape ``(n_points, n_solids, n_components)`` with the
+        partial derivatives :math:`\\partial g_k / \\partial c_j`.
+    """
     g = fobj.gobj(concentration, solubility_stoich, solubility_product)
     return (1 + g[..., None])*solubility_stoich[None,...]/concentration[:,None,:]
 
@@ -155,14 +227,78 @@ def amatrix(concentration, stoichiometryx):
 
 
 def bmatrix_t(vol, vol0, n_species):
+    r"""Compute the **B** matrix for the derivative with respect to initial amounts.
+
+    Returns the right-hand side matrix used when solving for
+    :math:`\partial\log c / \partial t_i` (see :func:`dlogcdt`):
+
+    .. math::
+
+        B_{nij} = \frac{v_0\,\delta_{ij}}{v_0 + v_n}
+
+    Parameters
+    ----------
+    vol : numpy.ndarray
+        Titre volumes at each experimental point, shape ``(n_points,)``.
+    vol0 : float
+        Initial volume of the solution (mL).
+    n_species : int
+        Number of free components (size of the identity block).
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape ``(n_points, n_species, n_species)``.
+    """
     B = np.eye(n_species)[np.newaxis, ...] * vol0 / (vol0 + vol[:, np.newaxis, np.newaxis])
     return B
 
 
 def bmatrix_b(vol, vol0, n_species):
+    r"""Compute the **B** matrix for the derivative with respect to buret concentrations.
+
+    Returns the right-hand side matrix used when solving for
+    :math:`\partial\log c / \partial b_i` (see :func:`dlogcdb`):
+
+    .. math::
+
+        B_{nij} = \frac{v_n\,\delta_{ij}}{v_0 + v_n}
+
+    Parameters
+    ----------
+    vol : numpy.ndarray
+        Titre volumes at each experimental point, shape ``(n_points,)``.
+    vol0 : float
+        Initial volume of the solution (mL).
+    n_species : int
+        Number of free components (size of the identity block).
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape ``(n_points, n_species, n_species)``.
+    """
     B = vol[:, np.newaxis, np.newaxis] * np.eye(n_species)[np.newaxis, ...] / (vol0 + vol[:, np.newaxis, np.newaxis])
     return B
 
 
 def solve_xmatrix(amatrix, bmatrix):
+    """Solve the linear system ``A X = B`` and return the squeezed result.
+
+    A thin wrapper around :func:`numpy.linalg.solve` that also squeezes
+    length-1 dimensions from the output, which is convenient when *B* has
+    a single right-hand side.
+
+    Parameters
+    ----------
+    amatrix : numpy.ndarray
+        Coefficient matrix (or batch thereof), shape ``(n, m, m)``.
+    bmatrix : numpy.ndarray
+        Right-hand side matrix (or batch), shape ``(n, m, k)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Solution array with singleton dimensions removed.
+    """
     return np.squeeze(np.linalg.solve(amatrix, bmatrix))

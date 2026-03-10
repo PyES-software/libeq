@@ -118,6 +118,63 @@ def solve_equilibrium_equations(
     initial_guess=None,
     full=False,
 ):
+    """Solve the equilibrium equations for free and solid-phase concentrations.
+
+    Applies a three-stage algorithm:
+
+    1. **PCF damping** – uses the Positive Continuous Fraction method to
+       generate a stable initial guess from *initial_guess* (or a small
+       uniform value when not supplied).
+    2. **Newton–Raphson** – refines the solution to high accuracy.
+    3. **Solids solver** – if solid phases are present, iteratively
+       determines which solids precipitate and re-solves the constrained
+       system.
+
+    All keyword arguments are passed by name; positional use is not
+    supported.
+
+    Parameters
+    ----------
+    stoichiometry : numpy.ndarray
+        Integer array of shape ``(n_components, n_species)`` with the
+        stoichiometric coefficients of the soluble species.
+    solid_stoichiometry : numpy.ndarray
+        Integer array of shape ``(n_components, n_solids)`` for solid phases.
+    original_log_beta : numpy.ndarray
+        log10 stability constants for soluble species.
+    original_log_ks : numpy.ndarray
+        log10 solubility products for solid phases.
+    total_concentration : numpy.ndarray
+        Analytical (total) concentrations array of shape
+        ``(n_points, n_components)``.
+    outer_fiexd_point_params : dict
+        Keyword arguments forwarded to
+        :func:`~libeq.outer_fixed_point.outer_fixed_point` for ionic-strength
+        corrections.
+    initial_guess : numpy.ndarray or None, optional
+        Starting free-concentration estimate of shape
+        ``(n_points, n_components)``.  Defaults to ``1e-12`` for all
+        components when ``None``.
+    full : bool, optional
+        If ``True``, the returned *result* contains concentrations for all
+        species (components + complexes).  Defaults to ``False``.
+
+    Returns
+    -------
+    result : numpy.ndarray
+        Calculated equilibrium concentrations.  Shape depends on *full*.
+    log_beta : numpy.ndarray
+        log10 stability constants (possibly corrected for ionic
+        strength) used in the final iteration.
+    log_ks : numpy.ndarray
+        log10 solubility products used in the final iteration.
+    saturation_index : numpy.ndarray
+        Saturation indices for each solid phase, shape
+        ``(n_points, n_solids)``.
+    total_concentration : numpy.ndarray
+        Total concentrations as used in the final calculation (may differ
+        from input in distribution mode after :func:`_expand_result`).
+    """
     if initial_guess is None:
         initial_guess = np.full_like(total_concentration, 1e-12)
     else:

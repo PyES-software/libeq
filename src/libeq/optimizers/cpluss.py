@@ -74,5 +74,24 @@ def cpluss(concentration, beta, stoichiometry, full=False, logc=False):
 
 
 def mass_action_solid(concentration, solubility_stoich):
+    """Compute the reaction quotient for each solid phase.
+
+    Evaluates the ion product :math:`Q_k = \\prod_j c_j^{q_{jk}}` for every
+    solid phase *k* using the free component concentrations.
+
+    Parameters
+    ----------
+    concentration : numpy.ndarray
+        Free component concentrations, shape ``(n_points, n_components)``.
+        All values must be strictly positive.
+    solubility_stoich : numpy.ndarray
+        Stoichiometry matrix for solid phases, shape
+        ``(n_components, n_solids)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Ion products for each solid phase, shape ``(n_points, n_solids)``.
+    """
     logc = np.log(concentration)
     return np.exp(np.dot(logc, solubility_stoich.T))

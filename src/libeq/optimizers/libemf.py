@@ -133,11 +133,60 @@ def emf_jac_e0(size: int) -> FArray:
 
 
 def emf_weights(titre: FArray, titre_error: float, emf: FArray, emf_error: float) -> FArray:
+    """Compute per-point weights using the Gans *et al.* propagation formula.
+
+    The weight at each point is defined as
+
+    .. math::
+
+        w_n = \\frac{1}{\\sigma_E^2 + \\left(\\frac{\\partial E}{\\partial V}\\right)_n^2 \\sigma_V^2}
+
+    where the gradient is estimated numerically from the data.
+
+    Parameters
+    ----------
+    titre : numpy.ndarray
+        Titrant volumes at each point, shape ``(n_points,)``.
+    titre_error : float
+        Standard deviation of the titre measurement (mL).
+    emf : numpy.ndarray
+        Measured EMF values, shape ``(n_points,)``.
+    emf_error : float
+        Standard deviation of the EMF measurement (mV).
+
+    Returns
+    -------
+    numpy.ndarray
+        1-D weight array of shape ``(n_points,)``.
+    """
     gradient = np.gradient(emf, titre, axis=0)
     return 1/(emf_error**2 + gradient**2 * titre_error**2)
 
 
 def residual_jacobian(emf: FArray, calc_emf: FArray, weights: FArray, demfdx) -> FArray:
+    """Compute the gradient of the weighted sum-of-squares with respect to parameters.
+
+    Evaluates :math:`-2 \\sum_n w_n (E_n - \\hat{E}_n) E_n \\frac{\\partial \\hat{E}}{\\partial x}`,
+    which is used as the right-hand side in the Gauss–Newton normal equations.
+
+    Parameters
+    ----------
+    emf : numpy.ndarray
+        Experimentally measured EMF values, shape ``(n_points,)``.
+    calc_emf : numpy.ndarray
+        Calculated (model) EMF values, shape ``(n_points,)``.
+    weights : numpy.ndarray
+        Per-point weights, shape ``(n_points,)``.
+    demfdx : numpy.ndarray
+        Jacobian of the calculated EMF with respect to the parameters,
+        shape ``(n_points, n_params)`` or ``(n_points, p, q)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Gradient array with the same shape as the last dimensions of
+        *demfdx* after summing over the first (points) dimension.
+    """
     # breakpoint()
     aux = np.sqrt(weights)*(emf - calc_emf)*emf
     return -2*np.sum(aux[:,None,None]*demfdx, axis=0)

@@ -23,6 +23,27 @@ from .consts import Flags
 
 
 def _assemble_species_names(components, stoichiometry):
+    """Assemble human-readable species names from component labels and stoichiometry.
+
+    For each species (column of *stoichiometry*), a name is constructed by
+    concatenating the component names raised to their respective stoichiometric
+    coefficients.  Negative coefficients are represented as ``(OH)`` (or
+    ``(OH)n`` for |n| > 1), consistent with the convention used in
+    potentiometry software.
+
+    Parameters
+    ----------
+    components : list of str
+        Names of the chemical components (rows of *stoichiometry*).
+    stoichiometry : numpy.ndarray
+        2-D integer array of shape ``(n_components, n_species)`` containing the
+        stoichiometric coefficients.
+
+    Returns
+    -------
+    list of str
+        List of ``n_species`` species name strings.
+    """
     species_names = ["" for _ in range(stoichiometry.shape[1])]
     for i, row in enumerate(stoichiometry):
         for j, value in enumerate(row):
@@ -37,6 +58,28 @@ def _assemble_species_names(components, stoichiometry):
 def _validate_or_error(
     field: str, condition: bool, error_message: str, errors: Dict[str, str]
 ) -> Dict[str, str]:
+    """Validate a single condition and record an error message on failure.
+
+    Evaluates *condition*; if it is ``False`` (or raises an exception), the
+    *error_message* string is stored under *field* in *errors*.
+
+    Parameters
+    ----------
+    field : str
+        Key to use when storing the error in *errors*.
+    condition : bool
+        Boolean expression to test.  An exception during evaluation is treated
+        as a failed condition.
+    error_message : str
+        Human-readable description of the validation failure.
+    errors : dict of str to str
+        Accumulator dictionary that is updated in-place and returned.
+
+    Returns
+    -------
+    dict of str to str
+        The updated *errors* dictionary.
+    """
     try:
         if not condition:
             errors[field] = error_message
@@ -47,6 +90,27 @@ def _validate_or_error(
 
 
 class DistributionParameters(BaseModel):
+    """Parameters for a species-distribution calculation over a pX range.
+
+    Attributes
+    ----------
+    c0 : numpy.ndarray or None
+        Initial total concentrations of each component (mol/L).  ``None`` if
+        not yet set.
+    c0_sigma : numpy.ndarray or None
+        Standard deviations of the initial concentrations (mol/L).
+    initial_log : float or None
+        Starting value of the pX axis (negative log of the free concentration
+        of the independent component).
+    final_log : float or None
+        Ending value of the pX axis.  Must be greater than *initial_log*.
+    log_increments : float or None
+        Step size along the pX axis.  Must be positive.
+    independent_component : int or None
+        Zero-based index of the component whose concentration is varied.
+    cback : float
+        Concentration of the background electrolyte (mol/L). Defaults to 0.
+    """
     c0: Np1DArrayFp64 | None = None
     c0_sigma: Np1DArrayFp64 | None = None
 
@@ -60,6 +124,31 @@ class DistributionParameters(BaseModel):
 
 
 class TitrationParameters(BaseModel):
+    """Base parameters shared by titration-type calculations.
+
+    Attributes
+    ----------
+    c0 : numpy.ndarray or None
+        Initial total concentrations of each component in the titration vessel
+        (mol/L).
+    c0_sigma : numpy.ndarray or None
+        Standard deviations of the initial concentrations (mol/L).
+    ct : numpy.ndarray or None
+        Concentrations of each component in the titrant solution (mol/L).
+    ct_sigma : numpy.ndarray or None
+        Standard deviations of the titrant concentrations (mol/L).
+    c0_flags : list of int
+        Refinement flags for each initial concentration.  Each element should
+        be a :class:`~libeq.consts.Flags` value.
+    ct_flags : list of int
+        Refinement flags for each titrant concentration.
+    c0back : float
+        Background-electrolyte concentration in the initial solution (mol/L).
+        Defaults to 0.0.
+    ctback : float
+        Background-electrolyte concentration in the titrant (mol/L).
+        Defaults to 0.0.
+    """
     c0: Np1DArrayFp64 | None = None
     c0_sigma: Np1DArrayFp64 | None = None
     ct: Np1DArrayFp64 | None = None
@@ -72,12 +161,65 @@ class TitrationParameters(BaseModel):
 
 
 class SimulationTitrationParameters(TitrationParameters):
+    """Parameters for a *simulated* (forward) titration calculation.
+
+    Extends :class:`TitrationParameters` with the geometric parameters needed
+    to generate the titre grid automatically.
+
+    Attributes
+    ----------
+    v0 : float or None
+        Initial volume of the solution in the titration vessel (mL).
+    v_increment : float or None
+        Volume of titrant added at each step (mL).  Must be positive.
+    n_add : int or None
+        Total number of titrant additions (i.e. number of data points).
+    """
     v0: float | None = None
     v_increment: float | None = None
     n_add: int | None = None
 
 
 class PotentiometryTitrationsParameters(TitrationParameters):
+    """Parameters for a single potentiometric titration experiment.
+
+    Extends :class:`TitrationParameters` with electrode, volume, and raw
+    experimental data needed to fit equilibrium constants from EMF readings.
+
+    Attributes
+    ----------
+    electro_active_compoment : int or None
+        Zero-based index of the component detected by the electrode.
+    e0 : float or None
+        Standard electrode potential (mV).
+    e0_sigma : float or None
+        Standard deviation of the electrode potential (mV).
+    slope : float or None
+        Nernstian slope of the electrode (mV per log unit).
+    v0 : float or None
+        Initial volume of the solution (mL).
+    v0_sigma : float or None
+        Standard deviation of the initial volume (mL).
+    v_add : numpy.ndarray or None
+        Cumulative volumes of titrant added at each experimental point (mL).
+    emf : numpy.ndarray or None
+        Measured electrode potentials at each experimental point (mV).
+    px_range : list of list of float or None
+        List of ``[pX_min, pX_max]`` pairs that define the pX windows used to
+        select active data points.  Points whose pX falls outside every window
+        are excluded.
+    ignored : numpy.ndarray of bool or None
+        Boolean mask with ``True`` for points that have been manually excluded.
+        Initialised automatically to all-``False`` when not provided.
+    get_titre : numpy.ndarray
+        Computed property returning the titrant volumes for non-ignored and
+        in-range points.
+    get_emf : numpy.ndarray
+        Computed property returning the EMF values for non-ignored and
+        in-range points.
+    pX : numpy.ndarray
+        Computed property returning ``(e0 - emf) / slope`` for active points.
+    """
     electro_active_compoment: int | None = None         # index of the component
     e0: float | None = None                             # in mV
     e0_sigma: float | None = None                       # in mV
@@ -92,20 +234,57 @@ class PotentiometryTitrationsParameters(TitrationParameters):
     @computed_field
     @cached_property
     def get_titre(self) -> Np1DArrayFp64:
+        """Return the active titrant volumes.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of titrant volumes (mL) for the data points that are neither
+            manually ignored nor outside the :attr:`px_range` windows.
+        """
         return self.__get_property(self.v_add)
 
     @computed_field
     @cached_property
     def get_emf(self) -> Np1DArrayFp64:
+        """Return the active EMF values.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of EMF values (mV) for the data points that are neither
+            manually ignored nor outside the :attr:`px_range` windows.
+        """
         return self.__get_property(self.emf)
 
     @computed_field
     @cached_property
     def pX(self) -> Np1DArrayFp64:
+        """Return the pX values for the active data points.
+
+        pX is defined as ``(e0 - emf) / slope`` and represents the negative
+        logarithm of the free concentration of the electroactive component.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of pX values for the active (non-ignored, in-range) points.
+        """
         return (self.e0 - self.get_emf) / self.slope
 
     @model_validator(mode='after')
     def set_ignored(self):
+        """Initialise the *ignored* mask when it has not been set explicitly.
+
+        If :attr:`ignored` is ``None``, it is replaced with an all-``False``
+        boolean array of the same length as :attr:`v_add`, meaning no point
+        is ignored by default.
+
+        Returns
+        -------
+        PotentiometryTitrationsParameters
+            The validated model instance.
+        """
         if self.ignored is None:
             self.ignored = np.full_like(self.v_add, False, dtype=bool)
         return self
@@ -126,6 +305,26 @@ class PotentiometryTitrationsParameters(TitrationParameters):
 
 
 class PotentiometryOptions(BaseModel):
+    """Top-level configuration for a potentiometric fitting run.
+
+    Attributes
+    ----------
+    titrations : list of PotentiometryTitrationsParameters
+        One entry per independent titration dataset.  Defaults to an empty list.
+    weights : {"constants", "calculated", "given"}
+        Weighting scheme applied to the residuals during optimisation.
+        ``"constants"`` assigns equal weight to all points;
+        ``"calculated"`` derives weights from the Gans *et al.* propagation
+        formula; ``"given"`` uses the sigma values supplied in the data.
+        Defaults to ``"constants"``.
+    beta_flags : list of int
+        Refinement flags (see :class:`~libeq.consts.Flags`) for each
+        formation constant.
+    conc_flags : list of int
+        Refinement flags for analytical concentrations.
+    pot_flags : list of int
+        Refinement flags for potentiometric parameters (e.g. *E*:sub:`0`).
+    """
     titrations: List[PotentiometryTitrationsParameters] = []
     weights: Literal["constants", "calculated", "given"] = "constants"
     beta_flags: List[int] = []
@@ -134,7 +333,96 @@ class PotentiometryOptions(BaseModel):
 
 
 class SolverData(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """Main data container for the equilibrium solver and optimizers.
+
+    This Pydantic model aggregates all thermodynamic and experimental
+    parameters needed by :func:`~libeq.solver.EqSolver` and
+    :func:`~libeq.optimizers.PotentiometryOptimizer`.  Extra fields are
+    forbidden to prevent silent mis-spellings.
+
+    Parameters
+    ----------
+    components : list of str
+        Names of the chemical components (master species).
+    stoichiometry : numpy.ndarray
+        Integer array of shape ``(n_components, n_species)`` with the
+        stoichiometric coefficients of each soluble species.
+    solid_stoichiometry : numpy.ndarray, optional
+        Integer array of shape ``(n_components, n_solids)`` for solid phases.
+        Defaults to an empty array (no solids).
+    log_beta : numpy.ndarray
+        log10 of the formation constants for soluble species.
+    log_beta_sigma : numpy.ndarray, optional
+        Uncertainties (1 σ) in *log_beta*.  Defaults to an empty array.
+    log_beta_ref_dbh : numpy.ndarray, optional
+        Reference ionic-strength correction coefficients for *log_beta*,
+        shape ``(3, n_species)`` or ``(0, 2)`` when unused.
+    log_ks : numpy.ndarray, optional
+        log10 of the solubility products.
+    log_ks_sigma : numpy.ndarray, optional
+        Uncertainties (1 σ) in *log_ks*.
+    log_ks_ref_dbh : numpy.ndarray, optional
+        Reference ionic-strength correction coefficients for *log_ks*.
+    charges : numpy.ndarray, optional
+        Integer charges of each component.
+    ionic_strength_dependence : bool, optional
+        If ``True``, the Davies–Brønsted–Hückel correction is applied to
+        adjust constants for the actual ionic strength.  Defaults to ``False``.
+    reference_ionic_str_species : float or numpy.ndarray, optional
+        Reference ionic strength at which *log_beta* values were determined.
+        Defaults to 0.
+    reference_ionic_str_solids : float or numpy.ndarray, optional
+        Reference ionic strength at which *log_ks* values were determined.
+        Defaults to 0.
+    dbh_params : numpy.ndarray, optional
+        Eight-element array with the Davies–Brønsted–Hückel parameters
+        ``[a, b, c0, c1, d0, d1, e0, e1]``.  Defaults to zeros.
+    temperature : float, optional
+        Absolute temperature in Kelvin.  Defaults to 298.15 K.
+    distribution_opts : DistributionParameters, optional
+        Parameters for species-distribution calculations.
+    titration_opts : SimulationTitrationParameters, optional
+        Parameters for simulated titration calculations.
+    potentiometry_opts : PotentiometryOptions, optional
+        Parameters and experimental data for potentiometric fitting.
+
+    Attributes
+    ----------
+    model_ready : tuple of (bool, dict)
+        ``(True, {})`` when the minimum required fields are present.
+    distribution_ready : tuple of (bool, dict)
+        ``(True, {})`` when all distribution parameters are valid.
+    titration_ready : tuple of (bool, dict)
+        ``(True, {})`` when all simulated-titration parameters are valid.
+    potentiometry_ready : tuple of (bool, dict)
+        ``(True, {})`` when all potentiometric fitting parameters are valid.
+    species_charges : numpy.ndarray
+        Net charge of each soluble species.
+    solid_charges : numpy.ndarray
+        Net charge of each solid species.
+    z_star_species : numpy.ndarray
+        Auxiliary charge term ``Σ p_ij * z_j^2 - z_species^2`` for soluble
+        species, used in Brønsted–Hückel corrections.
+    p_star_species : numpy.ndarray
+        Sum of stoichiometric coefficients minus 1 for each soluble species.
+    z_star_solids : numpy.ndarray
+        Analogous charge term for solid species.
+    p_star_solids : numpy.ndarray
+        Sum of stoichiometric coefficients for each solid species.
+    dbh_values : dict
+        Pre-computed Davies–Brønsted–Hückel correction arrays keyed by
+        ``"species"`` and ``"solids"``.
+    species_names : list of str
+        Auto-generated names for all species (components + complexes).
+    solids_names : list of str
+        Auto-generated names for all solid species.
+    nc : int
+        Number of components.
+    ns : int
+        Number of soluble species.
+    nf : int
+        Number of solid (precipitating) species.
+    """
 
     distribution_opts: DistributionParameters = DistributionParameters()
     titration_opts: SimulationTitrationParameters = SimulationTitrationParameters()
@@ -162,6 +450,14 @@ class SolverData(BaseModel):
     @computed_field
     @cached_property
     def model_ready(self) -> tuple[bool, dict[str, str]]:
+        """Check whether the minimal fields for any solver run are present.
+
+        Returns
+        -------
+        tuple of (bool, dict of str to str)
+            ``(True, {})`` if the model is valid; ``(False, errors)`` where
+            *errors* maps field names to human-readable error descriptions.
+        """
         fields_to_check = [
             {
                 "field": "Components",
@@ -187,6 +483,14 @@ class SolverData(BaseModel):
     @computed_field
     @cached_property
     def distribution_ready(self) -> tuple[bool, dict[str, str]]:
+        """Check whether all parameters for a distribution calculation are set.
+
+        Returns
+        -------
+        tuple of (bool, dict of str to str)
+            ``(True, {})`` if all distribution parameters are valid;
+            ``(False, errors)`` otherwise.
+        """
         fields_to_check = [
             {
                 "field": "Initial pX",
@@ -224,6 +528,14 @@ class SolverData(BaseModel):
     @computed_field
     @cached_property
     def titration_ready(self) -> tuple[bool, dict[str, str]]:
+        """Check whether all parameters for a simulated titration are set.
+
+        Returns
+        -------
+        tuple of (bool, dict of str to str)
+            ``(True, {})`` if all titration parameters are valid;
+            ``(False, errors)`` otherwise.
+        """
         fields_to_check = [
             {
                 "field": "Initial Volume",
@@ -263,6 +575,14 @@ class SolverData(BaseModel):
     @computed_field
     @cached_property
     def potentiometry_ready(self) -> tuple[bool, dict[str, str]]:
+        """Check whether all parameters for a potentiometric fitting run are set.
+
+        Returns
+        -------
+        tuple of (bool, dict of str to str)
+            ``(True, {})`` if all potentiometry parameters are valid;
+            ``(False, errors)`` otherwise.
+        """
         fields_to_check = [
             {
                 "field": "Initial Volume",
@@ -396,16 +716,48 @@ class SolverData(BaseModel):
     @computed_field
     @cached_property
     def species_charges(self) -> Np1DArrayFp64:
+        """Net charge of each soluble species.
+
+        Computed as the inner product of the stoichiometry matrix and the
+        component charges: ``Σ_j p_ij * z_j`` for each species *i*.
+
+        Returns
+        -------
+        numpy.ndarray
+            1-D float array of length ``ns`` with the net charge of each
+            soluble species.
+        """
         return (self.stoichiometry * self.charges[:, np.newaxis]).sum(axis=0)
 
     @computed_field
     @cached_property
     def solid_charges(self) -> Np1DArrayFp64:
+        """Net charge of each solid (precipitating) species.
+
+        Computed analogously to :attr:`species_charges` but using
+        :attr:`solid_stoichiometry`.
+
+        Returns
+        -------
+        numpy.ndarray
+            1-D float array of length ``nf`` with the net charge of each solid
+            species.
+        """
         return (self.solid_stoichiometry * self.charges[:, np.newaxis]).sum(axis=0)
 
     @computed_field(repr=False)
     @cached_property
     def z_star_species(self) -> Np1DArrayFp64:
+        """Auxiliary charge term for soluble species used in ion-strength corrections.
+
+        Defined as ``Σ_j p_ij * z_j^2 - z_species_i^2``, where *z_j* are the
+        component charges and *z_species_i* is the net charge of species *i*.
+
+        Returns
+        -------
+        numpy.ndarray
+            1-D float array of length ``ns``.
+        """
         return (self.stoichiometry * (self.charges[:, np.newaxis] ** 2)).sum(
             axis=0
         ) - self.species_charges**2
@@ -413,11 +765,31 @@ class SolverData(BaseModel):
     @computed_field(repr=False)
     @cached_property
     def p_star_species(self) -> Np1DArrayFp64:
+        """Sum of stoichiometric coefficients minus one for each soluble species.
+
+        Defined as ``Σ_j p_ij - 1``.  Used in Davies–Brønsted–Hückel
+        corrections.
+
+        Returns
+        -------
+        numpy.ndarray
+            1-D float array of length ``ns``.
+        """
         return self.stoichiometry.sum(axis=0) - 1
 
     @computed_field(repr=False)
     @cached_property
     def z_star_solids(self) -> Np1DArrayFp64:
+        """Auxiliary charge term for solid species used in ion-strength corrections.
+
+        Defined analogously to :attr:`z_star_species` but computed from
+        :attr:`solid_stoichiometry`.
+
+        Returns
+        -------
+        numpy.ndarray
+            1-D float array of length ``nf``.
+        """
         return (self.solid_stoichiometry * (self.charges[:, np.newaxis] ** 2)).sum(
             axis=0
         ) - self.solid_charges**2
@@ -425,11 +797,36 @@ class SolverData(BaseModel):
     @computed_field(repr=False)
     @cached_property
     def p_star_solids(self) -> Np1DArrayFp64:
+        """Sum of stoichiometric coefficients for each solid species.
+
+        Defined as ``Σ_j q_ij``.  Used in Davies–Brønsted–Hückel corrections
+        for solid phases.
+
+        Returns
+        -------
+        numpy.ndarray
+            1-D float array of length ``nf``.
+        """
         return self.solid_stoichiometry.sum(axis=0)
 
     @computed_field
     @cached_property
     def dbh_values(self) -> Dict[str, Np1DArrayFp64]:
+        """Pre-computed Davies–Brønsted–Hückel correction arrays.
+
+        Calculates the ionic-strength-dependent correction coefficients for
+        both soluble species and solid phases using :attr:`dbh_params`.  Any
+        species that have per-species reference values stored in
+        :attr:`log_beta_ref_dbh` or :attr:`log_ks_ref_dbh` override the
+        globally computed values.
+
+        Returns
+        -------
+        dict of str to dict
+            Outer keys are ``"species"`` and ``"solids"``.  Each inner dict
+            contains the arrays ``"azast"``, ``"adh"``, ``"bdh"``,
+            ``"cdh"``, ``"ddh"``, ``"edh"``, and ``"fib"``.
+        """
         result = dict()
         for phase, iref, per_species_cde, z, p in zip(
             ("species", "solids"),
@@ -459,6 +856,16 @@ class SolverData(BaseModel):
     @computed_field
     @cached_property
     def species_names(self) -> List[str]:
+        """Auto-generated names for all species (components and complexes).
+
+        The list starts with the component names followed by the names of the
+        soluble complexes assembled by :func:`_assemble_species_names`.
+
+        Returns
+        -------
+        list of str
+            Names of all ``nc + ns`` species.
+        """
         return self.components + _assemble_species_names(
             self.components, self.stoichiometry
         )
@@ -466,25 +873,71 @@ class SolverData(BaseModel):
     @computed_field
     @cached_property
     def solids_names(self) -> List[str]:
+        """Auto-generated names for all solid (precipitating) species.
+
+        Returns
+        -------
+        list of str
+            Names of all ``nf`` solid species assembled by
+            :func:`_assemble_species_names`.
+        """
         return _assemble_species_names(self.components, self.solid_stoichiometry)
 
     @computed_field
     @cached_property
     def nc(self) -> int:
+        """Number of chemical components.
+
+        Returns
+        -------
+        int
+            Number of rows in :attr:`stoichiometry`.
+        """
         return self.stoichiometry.shape[0]
 
     @computed_field
     @cached_property
     def ns(self) -> int:
+        """Number of soluble species (complexes).
+
+        Returns
+        -------
+        int
+            Number of columns in :attr:`stoichiometry`.
+        """
         return self.stoichiometry.shape[1]
 
     @computed_field
     @cached_property
     def nf(self) -> int:
+        """Number of solid (precipitating) species.
+
+        Returns
+        -------
+        int
+            Number of columns in :attr:`solid_stoichiometry`.
+        """
         return self.solid_stoichiometry.shape[1]
 
     @classmethod
     def load_from_bstac(cls, file_path: str) -> "SolverData":
+        """Load a :class:`SolverData` instance from a BSTAC-format file.
+
+        Reads and parses the BSTAC file at *file_path*, translating its
+        sections into the fields expected by :class:`SolverData`, including
+        components, stoichiometry, log10 stability constants,
+        ionic-strength correction parameters, and titration data.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to the BSTAC input file.
+
+        Returns
+        -------
+        SolverData
+            A fully initialised :class:`SolverData` instance.
+        """
         data = dict()
         with open(file_path, "r") as file:
             lines = file.readlines()
@@ -616,6 +1069,25 @@ class SolverData(BaseModel):
 
     @classmethod
     def load_from_pyes(cls, pyes_data: str | dict) -> "SolverData":
+        """Load a :class:`SolverData` instance from a PyES project file or dict.
+
+        Parses the JSON structure used by the PyES graphical application and
+        maps its fields to the corresponding :class:`SolverData` attributes,
+        including soluble and solid species models, ionic-strength correction
+        parameters, distribution parameters, simulated titration parameters,
+        and potentiometric titration data.
+
+        Parameters
+        ----------
+        pyes_data : str or dict
+            Either a path to a PyES JSON project file or an already-parsed
+            Python dict with the same structure.
+
+        Returns
+        -------
+        SolverData
+            A fully initialised :class:`SolverData` instance.
+        """
         if isinstance(pyes_data, str):
             with open(pyes_data, "r") as file:
                 pyes_data = json.load(file)
@@ -772,6 +1244,25 @@ class SolverData(BaseModel):
         return cls(**data)
 
     def to_pyes(self, format: Literal["dict", "json"] = "dict") -> dict[str, Any] | str:
+        """Serialise the instance to a PyES-compatible representation.
+
+        Converts all model data into the JSON structure expected by the PyES
+        graphical application.  The output can be returned as a Python
+        :class:`dict` or as a JSON-formatted string.
+
+        Parameters
+        ----------
+        format : {"dict", "json"}, optional
+            Output format.  ``"dict"`` returns a Python dict; ``"json"``
+            serialises it to a JSON string using :class:`~libeq.utils.NumpyEncoder`.
+            Defaults to ``"dict"``.
+
+        Returns
+        -------
+        dict or str
+            The PyES project data as a dict or JSON string, depending on
+            *format*.
+        """
         if isinstance(self.reference_ionic_str_species, (float, int)):
             species_ref_ionic_str = {
                 i: self.reference_ionic_str_species for i in range(self.ns)
