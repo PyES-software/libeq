@@ -176,7 +176,7 @@ def objective_function(analyticalc: FArray,
         Stoichiometry matrix for solid phases of shape
         ``(n_components, n_solids)``.
     log_Ks : numpy.ndarray
-        log\ :sub:`10` of the solubility products, shape ``(n_solids,)``.
+        log :sub:`10` of the solubility products, shape ``(n_solids,)``.
 
     Returns
     -------

@@ -3,6 +3,7 @@
 import copy
 import random
 import sys
+import os
 
 import pytest
 import numpy as np
@@ -55,6 +56,29 @@ class Test_ZnEDTA:
         for (calc_c0, _), _true_c0 in zip(result['final titration parameters'], true_c0):
             npt.assert_allclose(calc_c0, _true_c0, atol=1e-5)
 
+
+def _list_json(path):
+    return [os.path.join(path, f) 
+            for f in os.listdir(path)
+            if f.endswith('json')]
+
+
+@pytest.mark.parametrize("filename", _list_json('./tests/data/test_files/Glycine_test/'))
+def test_gly(filename):
+    data = SolverData.load_from_pyes(filename)
+    result = PotentiometryOptimizer(data, reporter=_dummy_reporter)
+    if 'Hfix' in filename:
+        true_beta = np.array([ 9.58, 12.00 ])
+        calc_beta = result['final variables']
+        npt.assert_allclose(calc_beta, true_beta, atol=1e-2)
+    else:
+        true_beta = np.array([ 9.49, 11.83 ])
+        true_c0 = [ 0.01483, 0.02989, 0.02103, 0.00876]
+        calc_beta = result['final variables'][:2]
+        npt.assert_allclose(calc_beta, true_beta, atol=1e-2)
+        calc_c0 = result['final variables'][2:]
+        npt.assert_allclose(calc_c0, true_c0, atol=1e-2)
+    
 
 def _dummy_reporter(**kwargs):
     pass
