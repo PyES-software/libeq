@@ -46,3 +46,8 @@ numpy-*.log
 *.npz
 
 sandbox
+benchmarks/*
+
+*.ods
+*.xls
+*.xlsx
