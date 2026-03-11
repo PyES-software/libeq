@@ -78,7 +78,18 @@ def test_gly(filename):
         npt.assert_allclose(calc_beta, true_beta, atol=1e-2)
         calc_c0 = result['final variables'][2:]
         npt.assert_allclose(calc_c0, true_c0, atol=1e-2)
-    
+
+
+def test_hexaprotic():
+    data = SolverData.load_from_pyes('./tests/data/test_files/Hexaprotic acid/H6L.json')
+    result = PotentiometryOptimizer(data, reporter=_dummy_reporter)
+    calc_beta = result['final variables'][:6]
+    true_beta = np.array([ 10.0, 18.0, 24.0, 28.0, 31.0, 33.0])
+    npt.assert_allclose(calc_beta, true_beta, atol=1e-2)
+    calc_c0 = result['final variables'][6:]
+    true_c0 = np.array([ 0.00500, 0.03000, 0.00500, 0.03000, 0.00200, 0.01200, 0.00200, 0.01200, 0.00400, 0.02400, 0.00400, 0.02400 ])
+    npt.assert_allclose(calc_c0, true_c0, atol=1e-2)
+
 
 def _dummy_reporter(**kwargs):
     pass
