@@ -601,6 +601,7 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     retval.update(fit_result)
     retval['covariance'] = cov
     retval['correlation'] = cor
+    retval['standard deviation'] = stdev
 
     retval['sigma split'] = [libmath.fit_sigma(fit_result['residuals'][s],
                                                retval['weights'][s],
