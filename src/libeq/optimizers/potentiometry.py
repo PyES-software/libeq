@@ -529,7 +529,7 @@ class PotentiometryBridge:
         if self._any_beta_refined:
             species_names = self._data.species_names
             beta_flags = self._data.potentiometry_opts.beta_flags
-            for name, flag in zip(species_names, beta_flags):
+            for name, flag in zip(species_names[self._data.nc:], beta_flags):
                 if flag == Flags.REFINE:
                     yield f"logB[{name}]"
         if self._any_conc_refined:
