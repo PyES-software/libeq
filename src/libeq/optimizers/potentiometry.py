@@ -1,6 +1,6 @@
 "Test collection for potentiometry data fitting."
 
-from typing import Protocol, TypeAlias, Any
+from typing import Protocol, TypeAlias, Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -15,7 +15,7 @@ from . import libfit
 from . import libmath
 
 
-FArray: TypeAlias = NDArray[float]
+FArray: TypeAlias = NDArray[np.float32 | np.float64 | np.float128]
 
 
 def refine_indices(flags: list[Flags]) -> list[bool]:
@@ -155,7 +155,7 @@ class PotentiometryBridge:
         self._slopes = np.zeros(self._total_points)
         self._emf0 = np.zeros(self._total_points)
         counter = 0
-        for ntit, titration in enumerate(self._titrations()):
+        for titration in (self._titrations()):
             self._dof_conc += sum(1 for _ in titration.c0_flags if _ == Flags.REFINE)
             self._dof_conc += sum(1 for _ in titration.ct_flags if _ == Flags.REFINE)
             self._slices.append(slice(counter, counter+len(titration.get_emf)))
@@ -208,7 +208,7 @@ class PotentiometryBridge:
             if any(idx_refinable_ct):
                 concs_to_refine.append(np.extract(idx_refinable_ct, titration.ct).tolist())
 
-        self._any_conc_refined = (len(concs_to_refine) > 0)
+        self._any_conc_refined = len(concs_to_refine) > 0
 
         # very important !! the betas are in natural logarithm!
         self._variables = np.concatenate([beta_to_refine*LN10, np.array(concs_to_refine)])
@@ -232,7 +232,7 @@ class PotentiometryBridge:
         """
         self._step[...] = 0.0
 
-    def final_result(self, stdev=None) -> dict[str, Any]:
+    def final_result(self, stdev: Optional[FArray]=None) -> dict[str, Any]:
         """Compile the complete refinement results into a dictionary.
 
         Parameters
@@ -278,8 +278,9 @@ class PotentiometryBridge:
             err_titr_parms = None
 
         # fvals = self.final_values()
-        eactive = libemf.hselect(self._freeconcentration, self._hindices) 
-        
+        assert self._freeconcentration is not None
+        eactive = libemf.hselect(self._freeconcentration, self._hindices)
+
         retval = {
             'final variables': variables,
             'final log beta': self._beta(),
@@ -486,7 +487,7 @@ class PotentiometryBridge:
             c0 = select(titration.c0, titration.c0_flags)
             ct = select(titration.ct, titration.ct_flags)
             yield c0, ct
-        
+
     def _calc_free_concs(self, initial=False, update=False) -> FArray:
         if initial or self._freeconcentration is None:
             _initial_guess = None
@@ -544,7 +545,7 @@ class PotentiometryBridge:
 
     def __calculate_residual(self, free_concentrations):
         assert free_concentrations.shape == (self._total_points, self._nspecies + self._ncomponents)
-        eactive = libemf.hselect(free_concentrations, self._hindices) 
+        eactive = libemf.hselect(free_concentrations, self._hindices)
         calculated_emf = self._emf0 + self._slopes * np.log(eactive)
         assert calculated_emf.shape == (self._total_points,)
         residual = self._experimental_emf - calculated_emf
@@ -594,8 +595,9 @@ def PotentiometryOptimizer(data: SolverData, reporter=None) -> dict[str, Any]:
     """
     bridge: Bridge = PotentiometryBridge(data, reporter)
     fit_status, fit_result = libfit.levenberg_marquardt(bridge, debug=False)
+    # TODO do something in case 'fit_status' is not Ok.
 
-    stdev, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights()) 
+    stdev, cor, cov = fit_final_calcs(fit_result['jacobian'], fit_result['residuals'], bridge.weights())
 
     retval = bridge.final_result(stdev)
     retval.update(fit_result)
@@ -700,4 +702,3 @@ def ravel(x, y, flags):
                 yield val
             else:  # other: compute proportional value
                 yield x[i] * ref_val[f] / x[ref_index[f]]
-
