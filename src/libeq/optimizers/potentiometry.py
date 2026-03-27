@@ -15,7 +15,7 @@ from . import libfit
 from . import libmath
 
 
-FArray: TypeAlias = NDArray[np.float32 | np.float64 | np.float128]
+FArray: TypeAlias = NDArray[np.float32 | np.float64]
 
 
 def refine_indices(flags: list[Flags]) -> list[bool]:
