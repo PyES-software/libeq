@@ -136,22 +136,27 @@ class PotentiometryBridge(Bridge):
         describing the current refinement state.  Pass ``None`` to suppress
         reporting.
     """
+    def __new__(cls, *args, **kwargs):
+        cls._exp_data_handler = "potentiometry_opts"
+        instance = super().__new__(cls)
+        return instance
+
     def __init__(self, data: SolverData, reporter) -> None:
         super().__init__(data, reporter)
         # self._data = data
         # self._reporter = reporter
-        self._freeconcentration: FArray | None = None
+        # self._freeconcentration: FArray | None = None
 
-        self._stoich = self._stoichiometry(extended=False)
-        self._stoichx = self._stoichiometry(extended=True)
-        self._nspecies, self._ncomponents = self._stoich.shape
-        self._ntitrations = len(data.potentiometry_opts.titrations)
-        self._experimental_points = [ len(t.get_titre) for t in self._titrations() ]
-        self._total_points = sum(self._experimental_points)
-        self._chargesx = np.sum(self._stoichx*data.charges, axis=1)
+        # self._stoich = self._stoichiometry(extended=False)
+        # self._stoichx = self._stoichiometry(extended=True)
+        # self._nspecies, self._ncomponents = self._stoich.shape
+        # self._ntitrations = len(data.potentiometry_opts.titrations)
+        # self._experimental_points = [ len(t.get_titre) for t in self._titrations() ]
+        # self._total_points = sum(self._experimental_points)
+        # self._chargesx = np.sum(self._stoichx*data.charges, axis=1)
 
         # calculate degrees of freedom
-        self._dof_beta = sum(1 for _ in data.potentiometry_opts.beta_flags if _ == Flags.REFINE)
+        # self._dof_beta = sum(1 for _ in data.potentiometry_opts.beta_flags if _ == Flags.REFINE)
         self._dof_conc = 0
         self._slices = []
         self._slopes = np.zeros(self._total_points)
@@ -222,17 +227,17 @@ class PotentiometryBridge(Bridge):
         # Calculate free concetrations initially
         self._freeconcentration = self._calc_free_concs(initial=True, update=False)
 
-    def accept_step(self) -> None:
-        "Update the variables values and reset increments to 0.0."
-        self._previous_values[:] = self._variables
-        self._variables += self._step
-        self._step[...] = 0.0
+    # def accept_step(self) -> None:
+    #     "Update the variables values and reset increments to 0.0."
+    #     self._previous_values[:] = self._variables
+    #     self._variables += self._step
+    #     self._step[...] = 0.0
 
-    def reject_step(self) -> None:
-        """
-        The step is rejected and increments are reset to 0.0 without updating the variables.
-        """
-        self._step[...] = 0.0
+    # def reject_step(self) -> None:
+    #     """
+    #     The step is rejected and increments are reset to 0.0 without updating the variables.
+    #     """
+    #     self._step[...] = 0.0
 
     def final_result(self, stdev: Optional[FArray]=None) -> dict[str, Any]:
         """Compile the complete refinement results into a dictionary.
@@ -460,19 +465,19 @@ class PotentiometryBridge(Bridge):
         beta[idx] = (self._variables[self._slice_betas] + self._step[self._slice_betas]) / LN10
         return beta
 
-    def _stoichiometry(self, extended=False):
-        "Get stoichiometry array."
-        number_components = self._data.stoichiometry.shape[0]
-        if extended:
-            return np.vstack((np.eye(number_components, dtype=int),
-                              np.array(self._data.stoichiometry.T)))
-        return self._data.stoichiometry.T
+    # def _stoichiometry(self, extended=False):
+    #     "Get stoichiometry array."
+    #     number_components = self._data.stoichiometry.shape[0]
+    #     if extended:
+    #         return np.vstack((np.eye(number_components, dtype=int),
+    #                           np.array(self._data.stoichiometry.T)))
+    #     return self._data.stoichiometry.T
 
-    def _titrations(self):
-        """
-        Iterate over the titrations.
-        """
-        yield from iter(self._data.potentiometry_opts.titrations)
+    # def _titrations(self):
+    #     """
+    #     Iterate over the titrations.
+    #     """
+    #     yield from iter(self._data.potentiometry_opts.titrations)
 
     def _titration_parameters(self):
         itx = iter(self._variables[self._dof_beta:].tolist())
