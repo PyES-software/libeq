@@ -13,6 +13,7 @@ from . import jacobian
 from . import libemf
 from . import libfit
 from . import libmath
+from . import Bridge
 
 
 FArray: TypeAlias = NDArray[np.float32 | np.float64]
@@ -25,98 +26,98 @@ def refine_indices(flags: list[Flags]) -> list[bool]:
     return [i == Flags.REFINE for i in flags]
 
 
-class Bridge(Protocol):
-    """Protocol (interface) consumed by the Levenberg–Marquardt fitter.
+# class BridgeProtocol(Protocol):
+#     """Protocol (interface) consumed by the Levenberg–Marquardt fitter.
+# 
+#     Concrete bridge classes encapsulate the problem-specific data and
+#     computations, exposing a uniform interface that
+#     :func:`~libeq.optimizers.libfit.levenberg_marquardt` can call without
+#     knowing the details of the underlying chemical model.
+#     """
+#     def __init__(self, data: SolverData):
+#         """Initialise the bridge with the problem data.
+# 
+#         Parameters
+#         ----------
+#         data : SolverData
+#             Container with all thermodynamic and experimental parameters.
+#         """
+#         ...
+# 
+#     def accept_step(self) -> None:
+#         """Commit the current trial step and reset the increment buffer to zero."""
+#         ...
+# 
+#     def final_result(self) -> dict:
+#         """Compile and return the full refinement result as a dictionary.
+# 
+#         Returns
+#         -------
+#         dict
+#             Key–value pairs describing the converged parameter values,
+#             concentrations, residuals, and diagnostic information.
+#         """
+#         ...
+# 
+#     def matrices(self) -> tuple[FArray, FArray]:
+#         """Compute and return the Jacobian and residual arrays for the accepted step.
+# 
+#         Returns
+#         -------
+#         tuple of (numpy.ndarray, numpy.ndarray)
+#             ``(J, r)`` where *J* is the Jacobian of shape
+#             ``(n_points, n_params)`` and *r* is the residual vector of shape
+#             ``(n_points,)``.
+#         """
+#         ...
+# 
+#     def reject_step(self) -> None:
+#         """Discard the current trial step and reset the increment buffer to zero."""
+#         ...
+# 
+#     def size(self) -> tuple[int, int]:
+#         """Return the dimensions of the fitting problem.
+# 
+#         Returns
+#         -------
+#         tuple of (int, int)
+#             ``(n_points, n_params)`` — total number of experimental
+#             observations and number of refinable parameters.
+#         """
+#         ...
+# 
+#     def trial_step(self, increments: FArray) -> None:
+#         """Store parameter increments for the next trial step.
+# 
+#         Parameters
+#         ----------
+#         increments : numpy.ndarray
+#             Proposed parameter increments, shape ``(n_params,)``.
+#         """
+#         ...
+# 
+#     def tmp_residual(self) -> FArray:
+#         """Compute and return the residual vector for the current trial step.
+# 
+#         Returns
+#         -------
+#         numpy.ndarray
+#             Residual vector of shape ``(n_points,)``.
+#         """
+#         ...
+# 
+#     def weights(self) -> FArray:
+#         """Return the weights matrix used in the objective function.
+# 
+#         Returns
+#         -------
+#         numpy.ndarray
+#             Square diagonal weights matrix of shape ``(n_points, n_points)``.
+#         """
+#         ...
 
-    Concrete bridge classes encapsulate the problem-specific data and
-    computations, exposing a uniform interface that
-    :func:`~libeq.optimizers.libfit.levenberg_marquardt` can call without
-    knowing the details of the underlying chemical model.
-    """
-    def __init__(self, data: SolverData):
-        """Initialise the bridge with the problem data.
 
-        Parameters
-        ----------
-        data : SolverData
-            Container with all thermodynamic and experimental parameters.
-        """
-        ...
-
-    def accept_step(self) -> None:
-        """Commit the current trial step and reset the increment buffer to zero."""
-        ...
-
-    def final_result(self) -> dict:
-        """Compile and return the full refinement result as a dictionary.
-
-        Returns
-        -------
-        dict
-            Key–value pairs describing the converged parameter values,
-            concentrations, residuals, and diagnostic information.
-        """
-        ...
-
-    def matrices(self) -> tuple[FArray, FArray]:
-        """Compute and return the Jacobian and residual arrays for the accepted step.
-
-        Returns
-        -------
-        tuple of (numpy.ndarray, numpy.ndarray)
-            ``(J, r)`` where *J* is the Jacobian of shape
-            ``(n_points, n_params)`` and *r* is the residual vector of shape
-            ``(n_points,)``.
-        """
-        ...
-
-    def reject_step(self) -> None:
-        """Discard the current trial step and reset the increment buffer to zero."""
-        ...
-
-    def size(self) -> tuple[int, int]:
-        """Return the dimensions of the fitting problem.
-
-        Returns
-        -------
-        tuple of (int, int)
-            ``(n_points, n_params)`` — total number of experimental
-            observations and number of refinable parameters.
-        """
-        ...
-
-    def trial_step(self, increments: FArray) -> None:
-        """Store parameter increments for the next trial step.
-
-        Parameters
-        ----------
-        increments : numpy.ndarray
-            Proposed parameter increments, shape ``(n_params,)``.
-        """
-        ...
-
-    def tmp_residual(self) -> FArray:
-        """Compute and return the residual vector for the current trial step.
-
-        Returns
-        -------
-        numpy.ndarray
-            Residual vector of shape ``(n_points,)``.
-        """
-        ...
-
-    def weights(self) -> FArray:
-        """Return the weights matrix used in the objective function.
-
-        Returns
-        -------
-        numpy.ndarray
-            Square diagonal weights matrix of shape ``(n_points, n_points)``.
-        """
-        ...
-
-
-class PotentiometryBridge:
+class PotentiometryBridge(Bridge):
     """Bridge implementation for potentiometric data fitting.
 
     Connects the generic Levenberg–Marquardt optimizer in
@@ -136,8 +137,9 @@ class PotentiometryBridge:
         reporting.
     """
     def __init__(self, data: SolverData, reporter) -> None:
-        self._data = data
-        self._reporter = reporter
+        super().__init__(data, reporter)
+        # self._data = data
+        # self._reporter = reporter
         self._freeconcentration: FArray | None = None
 
         self._stoich = self._stoichiometry(extended=False)
