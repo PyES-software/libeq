@@ -38,3 +38,8 @@ python_functions = ["test_*"]
 
 [pytest]
 pythonpath = ["../src"]
+
+[dependency-groups]
+dev = [
+    "ipython>=8.39.0",
+]
