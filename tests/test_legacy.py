@@ -4,6 +4,8 @@ import numpy as np
 import numpy.testing as npt
 
 from libeq import SolverData, Flags
+from libeq.data_structure import PotentiometryTitrationsParameters
+
 
 def test_import_superquad():
     parsed_data = SolverData.load_from_superquad("tests/data/hedtac.sup")
@@ -21,6 +23,14 @@ def test_import_superquad():
     assert popts.beta_flags == [Flags.REFINE, Flags.REFINE, Flags.REFINE,
                                 Flags.REFINE,Flags.CONSTANT]
     assert popts.weights == 'calculated'
+
+    titration: PotentiometryTitrationsParameters = parsed_data.potentiometry_opts.titrations[0]
+    print(titration.electro_active_compoment)
+    assert parsed_data.components[titration.electro_active_compoment] == 'PROTON'
+    assert titration.e0 == 364.50
+    assert titration.e0_sigma == 0.2
+    assert titration.v0 == 30.407
+    assert titration.v0 == 0.003
 
 
 def test_import_bstac():

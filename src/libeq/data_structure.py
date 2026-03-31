@@ -1042,7 +1042,7 @@ class SolverData(BaseModel):
             PotentiometryTitrationsParameters(
                 c0=np.array(t['initial amount'], dtype=float) / t['starting volume'],
                 ct=np.array(t['buret concentration'], dtype=float),
-                electro_active_compoment=t['electroactive'],
+                electro_active_compoment=t['electroactive']-1,
                 e0=t['standard potential'],
                 e0_sigma=t['potential error'],
                 slope=temp / 11.6048 * 2.303,
