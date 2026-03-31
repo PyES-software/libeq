@@ -304,7 +304,9 @@ class PotentiometryBridge(Bridge):
             'weights': self._weights,
             'degrees of freedom': self._dof,
             'number of experimental points': self._experimental_points,
-            'variable names': list(self._name_variables())
+            'variable names': list(self._name_variables()),
+            'any conc refined': self._any_conc_refined,
+            'any beta refined': self._any_beta_refined
         }
         return retval
 
