@@ -1,3 +1,30 @@
+"""
+Optimizer bridge utilities.
+
+This module defines the :class:`~libeq.optimizers.bridge.Bridge` abstract base
+class used by optimizers to interact with experimental datasets and the solver
+state in a uniform way. Concrete bridge implementations adapt a specific
+experimental technique (e.g., potentiometry) to the generic needs of a
+least-squares / iterative refinement engine by providing:
+
+- the current parameter vector and trial increments,
+- residual vectors for accepted and trial steps,
+- Jacobian and residual matrices for linearized updates,
+- weights used in the objective function,
+- problem dimensions and final result packaging.
+
+The module also provides :func:`ravel`, a helper to reconstruct a full parameter
+array from a compact vector of refinable parameters according to per-parameter
+flags (constant, refine, or constrained groups).
+
+Notes
+-----
+Bridges are expected to be subclassed. Subclasses must define the attribute
+``_exp_data_handler`` (the name of the attribute in :class:`~libeq.data_structure.SolverData`
+that holds the experimental dataset), and implement the abstract methods
+declared by :class:`Bridge`.
+"""
+
 from abc import ABC, abstractmethod
 from typing import Callable
 
@@ -12,9 +39,48 @@ FArray = NDArray[np.float32 | np.float64]
 
 
 class Bridge(ABC):
-    """Pipe data to the Levenverg-Marquard loop for optimization.
+    """
+    Abstract adapter between a refinement algorithm and an experimental dataset.
 
-    Bridging classes must implement the abstract methods.
+    A ``Bridge`` encapsulates the bookkeeping required to run an iterative fit:
+    it exposes residuals, Jacobians, weights, and the total problem size, and it
+    manages the distinction between *accepted* parameter values and a *trial*
+    step (stored as increments in ``_step``).
+
+    The constructor extracts and precomputes common quantities from
+    :class:`~libeq.data_structure.SolverData`, including stoichiometry matrices,
+    counts of species/components/titrations/points, charges for the extended
+    stoichiometry, and the number of refinable equilibrium constants.
+
+    Subclass contract
+    -----------------
+    Subclasses must:
+
+    - define ``_exp_data_handler`` before calling ``Bridge.__init__``; it must
+      be the name of a ``SolverData`` attribute whose value provides a
+      ``titrations`` iterable,
+    - define and maintain the following arrays used by the base methods:
+
+      * ``_variables`` (current accepted parameter values),
+      * ``_previous_values`` (buffer for rollback/diagnostics),
+      * ``_step`` (trial increments to apply on accept),
+
+    - implement all abstract methods: :meth:`matrices`, :meth:`tmp_residual`,
+      :meth:`trial_step`, :meth:`weights`, :meth:`size`, and :meth:`final_result`.
+
+    Parameters
+    ----------
+    data : SolverData
+        Full solver state and experimental options.
+    reporter : Callable
+        Callback used by higher-level optimizers to report progress and/or
+        diagnostics.
+
+    Notes
+    -----
+    :meth:`accept_step` commits ``_step`` into ``_variables`` and resets the
+    increment buffer to zero. :meth:`reject_step` only resets the increment
+    buffer.
     """
     def __init__(self, data: SolverData, reporter: Callable) -> None:
         assert hasattr(self, "_exp_data_handler")
