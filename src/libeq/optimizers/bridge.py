@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Sequence
+from typing import Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -12,6 +12,10 @@ FArray = NDArray[np.float32 | np.float64]
 
 
 class Bridge(ABC):
+    """Pipe data to the Levenverg-Marquard loop for optimization.
+
+    Bridging classes must implement the abstract methods.
+    """
     def __init__(self, data: SolverData, reporter: Callable) -> None:
         assert hasattr(self, "_exp_data_handler")
         self._titration_list = getattr(data, self._exp_data_handler).titrations
@@ -32,7 +36,7 @@ class Bridge(ABC):
         self._dof_beta = sum(1 for _ in data.potentiometry_opts.beta_flags if _ == Flags.REFINE)
 
         # define variables from the children class
-        self._variable: FArray
+        self._variables: FArray
         self._step: FArray
         self._previous_values: FArray
 
