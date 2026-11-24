@@ -43,3 +43,7 @@ pythonpath = ["../src"]
 dev = [
     "ipython>=8.39.0",
 ]
+
+[build-system]
+requires = ["meson-python>=0.16", "numpy>=2.0"]
+build-backend = "mesonpy"
