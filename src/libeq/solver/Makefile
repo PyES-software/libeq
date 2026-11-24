@@ -8,20 +8,7 @@ F2PY = uv run f2py
 RM = rm 
 
 FFLAGS = -Wall -O2 -fPIC
-
-LDFLAGS = -shared
-RPATH   = -Wl,-rpath,'$$ORIGIN/../lib'
 LLAPACK = -llapack -lblas
-
-SRCDIR  = src
-TESTDIR = tests
-BUILD   = build
-LIBDIR  = $(BUILD)/lib
-BINDIR  = $(BUILD)/bin
-MODDIR  = $(BUILD)/include
-PYMDIR  = $(SRCDIR)/equilx
-FDIR    = $(SRCDIR)/fortran
-ODIR    = $(BUILD)/objs
 
 # cpluss.f90 mb.f90 si.f90 nr.f90 pcf.f90 outer.f90 eq.f90 err.f90
 EQ_SRCS = $(wildcard ./*.f90)
