@@ -13,7 +13,7 @@ LLAPACK = -llapack -lblas
 # cpluss.f90 mb.f90 si.f90 nr.f90 pcf.f90 outer.f90 eq.f90 err.f90
 EQ_SRCS = $(wildcard ./*.f90)
 
-.PHONY: pymodule
+.PHONY: pymod
 
 
 MODNAME=fsolver
