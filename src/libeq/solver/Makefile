@@ -20,7 +20,7 @@ MODNAME=fsolver
 SIGNATURE=$(MODNAME).pyf
 
 pymod: $(EQ_SRCS)
-	$(F2PY) -c $(SIGNATURE) -m $(MODNAME) $(EQ_SRCS) $^ --f90flags="$(FFLAGS)" $(LLAPACK)
+	$(F2PY) -c $(SIGNATURE) -m $(MODNAME) $^ --f90flags="$(FFLAGS)" $(LLAPACK)
 
 signature:
 	$(F2PY) --overwrite-signature -h $(SIGNATURE) eq.f90 
